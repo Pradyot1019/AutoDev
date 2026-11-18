@@ -168,6 +168,54 @@ class TestDerivation:
 
         assert derive_contract(document).service(BACKEND_SLUG).key_files == ["app/main.py"]
 
+    def test_deployment_files_are_not_required_of_the_developer(self):
+        """The developer prompt forbids them, so the gate must not demand them."""
+        document = architecture()
+        document["project_structure"][0]["key_files"] = [
+            "Dockerfile",
+            "app/main.py",
+            "docker-compose.yml",
+            "deploy/Dockerfile.prod",
+            ".dockerignore",
+            "app/dockerfile_parser.py",
+        ]
+
+        assert derive_contract(document).service(BACKEND_SLUG).key_files == [
+            "app/main.py",
+            "app/dockerfile_parser.py",
+        ]
+
+    def test_test_files_and_folders_are_left_to_qa(self):
+        """QA writes the tests; the runner writes pytest.ini."""
+        document = architecture()
+        document["project_structure"][0]["folders"] = ["app", "tests", "app/tests", "app/core"]
+        document["project_structure"][0]["key_files"] = [
+            "app/main.py",
+            "tests/test_bookmarks.py",
+            "app/test_utils.py",
+            "app/user_test.py",
+            "conftest.py",
+            "pytest.ini",
+            "app/testing_helpers.py",
+            "app/latest.py",
+        ]
+
+        service = derive_contract(document).service(BACKEND_SLUG)
+
+        assert service.folders == ["app", "app/core"]
+        assert service.key_files == ["app/main.py", "app/testing_helpers.py", "app/latest.py"]
+
+    def test_a_missing_dockerfile_does_not_fail_the_gate(self, workspace: RunWorkspace):
+        document = architecture()
+        document["project_structure"][0]["key_files"] = ["app/main.py", "Dockerfile"]
+        source = workspace.service_source(BACKEND_SLUG)
+        (source / "app").mkdir(parents=True)
+        (source / "app" / "main.py").write_text("app = None\n")
+
+        violations = check_contract(derive_contract(document), workspace)
+
+        assert not any("Dockerfile" in line for line in violations)
+
     def test_the_real_fake_architecture_derives_cleanly(self):
         """The fixture the rest of the suite drives the pipeline with."""
         contract = derive_contract(fakes.build_architecture().model_dump(mode="json"))

@@ -116,12 +116,30 @@ class Settings(BaseSettings):
     # What to reserve for a response whose size is not knowable in advance.
     llm_output_reserve: int = 2_000
 
+    # Gemini thinking models spend hidden reasoning tokens out of the same
+    # max_output_tokens as the answer. On gemini-3.5-flash a PRD under the 3,500
+    # structured ceiling used 1,470 thinking tokens and stopped mid-JSON
+    # (finish_reason MAX_TOKENS); with 0 the same request returned a valid PRD.
+    # None leaves the model's own default; 0 turns thinking off.
+    google_thinking_budget: int | None = None
+    # The Gemini 3 control, and the only one some models take: gemini-3.5-flash-lite
+    # rejects thinking_budget=0 with 400 INVALID_ARGUMENT but accepts "minimal".
+    # When set it is sent instead of the budget. minimal | low | medium | high.
+    google_thinking_level: str | None = None
+
     # ── Credentials ──────────────────────────────────────────────
     google_api_key: str | None = None
     groq_api_key: str | None = None
     openai_api_key: str | None = None
     cerebras_api_key: str | None = None
     ollama_base_url: str = "http://localhost:11434"
+    # Any OpenAI-compatible API through the openai provider: DeepSeek
+    # (https://api.deepseek.com), Qwen on Alibaba Model Studio
+    # (https://dashscope-intl.aliyuncs.com/compatible-mode/v1), Kimi
+    # (https://api.moonshot.ai/v1) or OpenRouter (https://openrouter.ai/api/v1).
+    # OPENAI_API_KEY then holds that provider's key, and MODEL_* names its models.
+    # None means OpenAI itself.
+    openai_base_url: str | None = None
 
     # ── Groq capacity pool ───────────────────────────────────────
     # Groq meters tokens per organisation, so several accounts are several

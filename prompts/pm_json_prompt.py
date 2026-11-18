@@ -46,12 +46,10 @@ Produce a REVISED PRD that:
 def get_pm_prompt(user_requirements: str, previous_prd: dict | None = None, feedback: str = "") -> list:
     is_revision = bool(feedback) and bool(previous_prd)
 
-    system_content = SYSTEM_PROMPT
-    if is_revision:
-        system_content = SYSTEM_PROMPT + "\n\n" + REVISION_INSTRUCTIONS
-
+    # Identical system message on every call so providers can cache the prefix;
+    # the revision rules travel with the feedback at the end.
     messages = [
-        SystemMessage(content=system_content),
+        SystemMessage(content=SYSTEM_PROMPT),
         HumanMessagePromptTemplate.from_template(
             "USER REQUIREMENT:\n{user_requirements}\n"
         ),
@@ -61,10 +59,12 @@ def get_pm_prompt(user_requirements: str, previous_prd: dict | None = None, feed
 
     if is_revision:
         messages.append(HumanMessagePromptTemplate.from_template(
+            "{revision_instructions}\n\n"
             "PREVIOUS PRD (JSON):\n{previous_prd}\n\n"
             "USER REVISION FEEDBACK:\n{feedback}\n\n"
             "Produce the full revised PRD that addresses the feedback."
         ))
+        fmt["revision_instructions"] = REVISION_INSTRUCTIONS
         fmt["previous_prd"] = compact_json(previous_prd)
         fmt["feedback"] = feedback
     else:

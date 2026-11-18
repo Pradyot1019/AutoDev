@@ -17,7 +17,7 @@ from langchain_core.runnables import Runnable, RunnableLambda
 from pydantic import BaseModel
 
 from llm import registry
-from llm.structured import as_messages, build_strategies, parse_into, with_schema_prompt
+from llm.structured import REMINDER, as_messages, build_strategies, parse_into, with_schema_prompt
 from utils.json_utils import extract_json_object
 
 
@@ -124,14 +124,31 @@ class TestPromptCoercion:
         message = HumanMessage(content="hi")
         assert as_messages(message) == [message]
 
-    def test_schema_is_appended_without_losing_the_original(self):
+    def test_the_schema_leads_the_system_message_so_it_can_be_cached(self):
+        """Fixed content first: a provider's prefix cache only covers the start."""
         original = [SystemMessage(content="sys"), HumanMessage(content="build a widget")]
         result = with_schema_prompt(Widget).invoke(original)
 
-        assert result[:2] == original
-        appended = result[-1].content
-        assert "size" in appended and "name" in appended
-        assert "JSON Schema" in appended
+        assert isinstance(result[0], SystemMessage)
+        assert result[0].content.startswith("Respond with a single JSON object")
+        assert "JSON Schema" in result[0].content and '"size"' in result[0].content
+        assert result[0].content.endswith("sys")
+        # The original request is untouched, and a short reminder comes last.
+        assert result[1] == original[1]
+        assert result[-1].content == REMINDER
+
+    def test_two_requests_share_the_same_prefix(self):
+        first = with_schema_prompt(Widget).invoke([SystemMessage(content="sys"), HumanMessage(content="one")])
+        second = with_schema_prompt(Widget).invoke([SystemMessage(content="sys"), HumanMessage(content="two")])
+
+        assert first[0] == second[0]
+
+    def test_a_prompt_without_a_system_message_gets_one(self):
+        result = with_schema_prompt(Widget).invoke("build a widget")
+
+        assert isinstance(result[0], SystemMessage) and "JSON Schema" in result[0].content
+        assert result[1] == HumanMessage(content="build a widget")
+        assert result[-1].content == REMINDER
 
 
 class TestParseInto:

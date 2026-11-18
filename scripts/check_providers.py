@@ -48,7 +48,6 @@ def warn_about_shadowed_keys(path: str) -> None:
 
 
 def check(provider: LLMProvider, settings) -> bool:
-    model = model_name_for(provider, Purpose.TEXT, settings)
     print(f"\n--- {provider.value} ---")
 
     key = settings.api_key_for(provider)
@@ -56,17 +55,27 @@ def check(provider: LLMProvider, settings) -> bool:
         print(f"[ok]   {KEY_VARIABLE[provider]} found ({key[:7]}...)")
     elif provider is LLMProvider.OLLAMA:
         print(f"[ok]   no key needed, base_url={settings.ollama_base_url}")
+    if provider is LLMProvider.OPENAI and settings.openai_base_url:
+        print(f"       base_url={settings.openai_base_url}")
 
     for purpose in Purpose:
         print(f"       {purpose.value:<11} -> {model_name_for(provider, purpose, settings)}")
 
-    try:
-        response = get_chat_model(Purpose.TEXT, provider, settings).invoke(PING)
-        print(f"       ping ({model}) -> {response.content}")
-        return True
-    except Exception as exc:
-        print(f"[fail] {provider.value}: {exc}")
-        return False
+    # Ping each distinct model once: purposes can use different models, and one
+    # can reject a setting another accepts (a thinking config, say).
+    pinged: dict[str, Purpose] = {}
+    for purpose in Purpose:
+        pinged.setdefault(model_name_for(provider, purpose, settings), purpose)
+
+    reachable = True
+    for model, purpose in pinged.items():
+        try:
+            response = get_chat_model(purpose, provider, settings).invoke(PING)
+            print(f"       ping ({model}) -> {str(response.content)[:80]}")
+        except Exception as exc:
+            print(f"[fail] {provider.value} ({model}): {str(exc)[:300]}")
+            reachable = False
+    return reachable
 
 
 def main() -> int:

@@ -66,6 +66,14 @@ _RETRYABLE_STATUS = frozenset({408, 409, 425, 429})
 # look retryable; it is not, because waiting cannot shrink a request.
 _FATAL_STATUS = frozenset({401, 402, 403, 404, 413})
 
+# A 429 is normally a per-minute window that clears in seconds, but a *daily*
+# quota does not: Gemini's free tier answers with quotaId
+# "GenerateRequestsPerDayPerProjectPerModel-FreeTier" and a retryDelay of ~14
+# hours, and Groq names "tokens per day (TPD)". Retrying those only spends time,
+# and every structured rung asks the same model, so the ladder for this model
+# stops here. Other providers and accounts are still tried: each has its own quota.
+_DAILY_QUOTA = re.compile(r"PerDay|per[ _-]?day|\b(?:RPD|TPD)\b", re.IGNORECASE)
+
 # Provider SDKs and httpx do not subclass the builtin TimeoutError or
 # ConnectionError, so the class name is the only portable signal.
 _TRANSIENT_NAME = re.compile(r"timeout|timedout|connection|unavailable|overload", re.IGNORECASE)
@@ -185,6 +193,9 @@ def classify(exc: BaseException) -> Disposition:
         return Disposition.ABORT
 
     status = status_code(exc)
+    if status in (429, None) and _DAILY_QUOTA.search(str(exc)):
+        return Disposition.ABORT
+
     if status is not None:
         if status in _FATAL_STATUS:
             return Disposition.ABORT

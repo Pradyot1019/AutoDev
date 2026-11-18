@@ -178,7 +178,7 @@ when LangChain has re-raised it as a plain error — and sorts the failure into 
 | --- | --- | --- |
 | retry | `429`, `5xx`, timeouts, dropped connections | Same call again, after the wait the provider asked for, or exponential backoff if it did not say |
 | degrade | `400` tool-call or JSON-schema failures, validation errors | Straight to the next strategy or provider, no repeat |
-| abort | bad key, decommissioned model, a call larger than the whole budget | Stop; no weaker strategy on the same model can help |
+| abort | bad key, decommissioned model, a call larger than the whole budget, a 429 for a *daily* quota | Stop; no weaker strategy on the same model can help (other providers are still tried) |
 
 An unrecognised error degrades rather than retries: falling through costs one attempt on the next rung,
 while repeating an unknown deterministic failure costs the budget.

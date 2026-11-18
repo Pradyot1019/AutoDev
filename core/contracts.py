@@ -63,6 +63,40 @@ _ENTRYPOINT_SUFFIXES = frozenset({".py", ".js", ".jsx", ".ts", ".tsx", ".mjs", "
 # Directories that belong to tooling rather than to the delivered project.
 _IGNORED = frozenset({".venv", "venv", "node_modules", "__pycache__", ".git", ".pytest_cache"})
 
+# Deployment files are not the developer's to write: its prompt forbids them ("a
+# deployment agent handles those"). Requiring them anyway made the static gate
+# send correct code back for a Dockerfile the developer is told never to emit --
+# two of three attempts in a live run, until the developer broke its own rule.
+_DEPLOYMENT_FILES = frozenset(
+    {"dockerfile", ".dockerignore", "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"}
+)
+
+
+def _is_deployment_file(path: str) -> bool:
+    name = PurePosixPath(path).name.lower()
+    return name in _DEPLOYMENT_FILES or name.startswith("dockerfile.") or name.endswith(".dockerfile")
+
+
+# Tests are QA's to write, into their own tree, and the runner writes pytest.ini.
+# An architecture that lists tests/test_bookmarks.py made the gate send correct
+# code back to the developer for a file that is not its job -- the same mistake
+# as the Dockerfile, one attempt wasted in a live run.
+_TEST_DIRS = frozenset({"tests", "test", "__tests__"})
+_TEST_FILES = frozenset({"conftest.py", "pytest.ini"})
+
+
+def _is_test_path(path: str) -> bool:
+    parts = PurePosixPath(path.lower()).parts
+    if any(part in _TEST_DIRS for part in parts):
+        return True
+    name = parts[-1] if parts else ""
+    return name in _TEST_FILES or (name.startswith("test_") and name.endswith(".py")) or name.endswith("_test.py")
+
+
+def _developer_owns(path: str) -> bool:
+    """Whether a path the architecture names is the developer's to produce."""
+    return not _is_deployment_file(path) and not _is_test_path(path)
+
 
 # ── Representation ───────────────────────────────────────────────
 
@@ -142,13 +176,14 @@ def derive_contract(architecture: dict[str, Any] | None) -> ArchitectureContract
             continue
 
         structure = structures.get(slug, {})
-        key_files = _clean_paths(structure.get("key_files"))
+        key_files = [path for path in _clean_paths(structure.get("key_files")) if _developer_owns(path)]
+        folders = [path for path in _clean_paths(structure.get("folders")) if not _is_test_path(path)]
 
         contracts.append(
             ServiceContract(
                 slug=slug,
                 name=name,
-                folders=_clean_paths(structure.get("folders")),
+                folders=folders,
                 key_files=key_files,
                 entrypoint=_entrypoint(key_files),
                 depends_on=_dependency_slugs(service.get("dependencies"), declared),

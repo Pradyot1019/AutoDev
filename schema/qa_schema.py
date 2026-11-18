@@ -17,7 +17,7 @@ class Bug(BaseModel):
 
 class TestCase(BaseModel):
     test_name: str = Field(..., description="Name of the test case")
-    test_file_path: str = Field(..., description="Path where this test file should be saved, e.g., 'tests/test_auth.py'")
+    test_file_path: str = Field(..., description="Bare filename for this test file, e.g., 'test_auth.py' (no 'tests/' prefix)")
     description: str = Field(..., description="What this test verifies")
     test_code: str = Field(..., description="The complete source code for the test")
     target_file: str = Field(..., description="The source code file this test is targeting")

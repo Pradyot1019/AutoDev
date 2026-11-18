@@ -27,6 +27,7 @@ from llm.accounting import (
     Ledger,
     Outcome,
     current_ledger,
+    is_rate_limited,
     merge_reports,
     outcome_for,
     record_attempt,
@@ -260,6 +261,61 @@ class TestRetriesAreRecordedSeparately:
 
 
 # ── Duration and outcome ─────────────────────────────────────────
+
+
+class TestRateLimitsAreCountedApart:
+    """A 429 shares the "retry" outcome with 5xx errors and timeouts, so the
+    benchmark needs its own count of rejections by the per-minute window."""
+
+    def test_a_429_is_counted_as_rate_limited(self, monkeypatch: pytest.MonkeyPatch):
+        _patch_model(
+            monkeypatch,
+            FlakyModel(RuntimeError(RATE_LIMITED), RuntimeError(RATE_LIMITED), total_tokens=50),
+        )
+
+        with recording("run-1", Stage.PM.value) as ledger:
+            registry.llm_call("hello there", Purpose.TEXT)
+
+        assert [entry.rate_limited for entry in ledger.records] == [True, True, False]
+        assert ledger.totals()["rate_limited"] == 2
+
+    def test_a_server_error_retries_but_is_not_a_rate_limit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        _patch_model(
+            monkeypatch,
+            FlakyModel(RuntimeError("Error code: 503 - {'message': 'overloaded'}"), total_tokens=50),
+        )
+
+        with recording("run-1", Stage.PM.value) as ledger:
+            registry.llm_call("hello there", Purpose.TEXT)
+
+        assert ledger.records[0].outcome == Outcome.RETRY.value
+        assert ledger.totals()["rate_limited"] == 0
+
+    @pytest.mark.parametrize(
+        ("message", "expected"),
+        [
+            ("Error code: 429 - {'message': 'quota'}", True),
+            ("429 RESOURCE_EXHAUSTED. Quota exceeded for metric", True),
+            ("Too Many Requests", True),
+            ("Error code: 413 - {'type': 'rate_limit_exceeded'}", False),
+            ("Error code: 400 - {'message': 'tool_use_failed'}", False),
+            ("connection reset by peer", False),
+        ],
+    )
+    def test_is_rate_limited(self, message: str, expected: bool):
+        assert is_rate_limited(RuntimeError(message)) is expected
+
+    def test_merged_reports_add_up_and_older_reports_read_as_zero(self):
+        ledger = Ledger("r", Stage.PM.value)
+        _add(ledger, outcome=Outcome.RETRY, rate_limited=True)
+        older = {"calls": 1, "reserved_tokens": 10, "outcomes": {"success": 1}}
+
+        merged = merge_reports(older, ledger.report())
+
+        assert merged["rate_limited"] == 1
+        assert merge_reports({}, {})["rate_limited"] == 0
 
 
 class TestDurationAndOutcome:

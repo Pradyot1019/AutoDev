@@ -34,6 +34,7 @@ task, and a task gets its own copy of the context. Nothing is process-global.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -41,7 +42,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from llm.errors import classify
+from llm.errors import classify, status_code
 
 
 class Outcome(StrEnum):
@@ -67,6 +68,26 @@ def outcome_for(exc: BaseException) -> Outcome:
         return Outcome(classify(exc).value)
     except ValueError:  # pragma: no cover - a disposition this enum lacks
         return Outcome.FAILED
+
+
+# Providers that re-raise without a status still say why in the text. Gemini's
+# quota error is RESOURCE_EXHAUSTED; Groq and OpenAI say "rate limit" or
+# "too many requests".
+_RATE_LIMIT_TEXT = re.compile(r"rate.?limit|too many requests|resource.?exhausted", re.IGNORECASE)
+
+
+def is_rate_limited(exc: BaseException) -> bool:
+    """Was this attempt refused by the provider's rate limiter (an HTTP 429)?
+
+    Counted apart from the ``retry`` outcome, which also covers 5xx errors,
+    timeouts and dropped connections. A 413 is not counted: Groq tags an
+    oversized request ``rate_limit_exceeded``, but waiting cannot shrink it, so
+    it is a request-size failure rather than a rejection by the per-minute window.
+    """
+    status = status_code(exc)
+    if status is not None:
+        return status == 429
+    return bool(_RATE_LIMIT_TEXT.search(str(exc)))
 
 
 @dataclass(frozen=True)
@@ -121,6 +142,8 @@ class CallRecord:
     # Set only on an escalated call, so ``difficulty`` and ``tier`` together with
     # this answer "what did it start on, what did it end on, and why".
     escalation_reason: str | None = None
+    # True when the provider refused this attempt with a 429; see is_rate_limited.
+    rate_limited: bool = False
 
 
 def empty_totals() -> dict[str, Any]:
@@ -131,6 +154,7 @@ def empty_totals() -> dict[str, Any]:
         "reserved_tokens": 0,
         "actual_tokens": None,
         "calls_with_usage": 0,
+        "rate_limited": 0,
         "seconds": 0.0,
         "estimated_cost": None,
         "outcomes": {},
@@ -146,6 +170,7 @@ def _totals_of(records: Iterable[CallRecord]) -> dict[str, Any]:
         totals["estimated_tokens"] += record.estimated_tokens
         totals["reserved_tokens"] += record.reserved_tokens
         totals["seconds"] += record.duration_seconds
+        totals["rate_limited"] += int(record.rate_limited)
         totals["outcomes"][record.outcome] = totals["outcomes"].get(record.outcome, 0) + 1
         if record.actual_tokens is not None:
             totals["calls_with_usage"] += 1
@@ -203,6 +228,7 @@ class Ledger:
         tier: str | None = None,
         difficulty: str | None = None,
         escalation_reason: str | None = None,
+        rate_limited: bool = False,
         run_id: str | None = None,
         stage: str | None = None,
     ) -> CallRecord:
@@ -223,6 +249,7 @@ class Ledger:
             tier=tier,
             difficulty=difficulty,
             escalation_reason=escalation_reason,
+            rate_limited=bool(rate_limited),
         )
         self._records.append(entry)
         return entry
@@ -314,6 +341,8 @@ def merge_reports(base: dict[str, Any] | None, addition: dict[str, Any] | None) 
         merged["estimated_tokens"] += int(report.get("estimated_tokens") or 0)
         merged["reserved_tokens"] += int(report.get("reserved_tokens") or 0)
         merged["calls_with_usage"] += int(report.get("calls_with_usage") or 0)
+        # Reports written before 429s were counted lack the key; read as zero.
+        merged["rate_limited"] += int(report.get("rate_limited") or 0)
         merged["seconds"] += float(report.get("seconds") or 0.0)
 
         actual = report.get("actual_tokens")

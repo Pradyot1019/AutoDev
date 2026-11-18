@@ -193,6 +193,30 @@ class TestDeveloperAgent:
         assert (workspace.source / "requirements.txt").is_file()
         assert (workspace.source / "README.md").read_text(encoding="utf-8").startswith("# SpendWise")
 
+    async def test_a_lone_service_with_the_wrong_name_is_still_used(self, ready_state, workspace, stub_llm):
+        """One service was asked for, so a single returned service is that one,
+        whatever the model called it (live: "Bookmark API Service" -> "bookmark_api")."""
+        output = fakes.build_developer_output()
+        output.services[0].service_name = "backend_api_v2"
+        stub_llm.set(DeveloperSchema, output)
+
+        update = await developer_agent(ready_state)
+
+        assert update["status"][Stage.DEVELOPER.value] == AgentStatus.COMPLETED.value
+        assert (workspace.source / fakes.SERVICE_SLUG / "app" / "calculator.py").is_file()
+        assert not (workspace.source / "backend-api-v2").exists()
+
+    async def test_several_services_with_no_match_are_still_refused(self, ready_state, stub_llm):
+        """With two candidates, which one was meant is no longer certain."""
+        output = fakes.build_developer_output()
+        stray = output.services[0].model_copy(update={"service_name": "something_else"})
+        output.services = [output.services[0].model_copy(update={"service_name": "other"}), stray]
+        stub_llm.set(DeveloperSchema, output)
+
+        update = await developer_agent(ready_state)
+
+        assert update["status"][Stage.DEVELOPER.value] == AgentStatus.FAILED.value
+
     async def test_path_traversal_is_rejected_without_failing_the_run(
         self, ready_state, workspace, stub_llm, tmp_path: Path
     ):

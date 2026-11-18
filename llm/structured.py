@@ -26,12 +26,13 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable, RunnableLambda
 from pydantic import BaseModel
 
 from core.logging import get_logger
 from llm.content import flatten_content
+from llm.errors import status_code
 from utils.json_utils import extract_json_object
 
 logger = get_logger(__name__)
@@ -66,18 +67,36 @@ def schema_instructions(schema: type[BaseModel]) -> str:
     return INSTRUCTIONS.format(schema=json.dumps(schema.model_json_schema(), indent=2))
 
 
+REMINDER = "Respond now with the single JSON object, valid against the JSON Schema given at the start. Raw JSON only."
+
+
 def with_schema_prompt(schema: type[BaseModel]) -> Runnable:
-    """Append the schema to the prompt.
+    """Put the schema in the prompt.
 
     Needed by every rung below the provider-enforced ones, where the model is
     told what shape to produce rather than being constrained to it.
+
+    The schema goes at the *start*, inside the system message, with a one-line
+    reminder at the end. Providers discount a prompt prefix they have seen
+    recently (DeepSeek, Qwen, OpenAI and Gemini all cache automatically), and the
+    schema is both large and identical on every call for a given contract, while
+    the requirement, the documents and the failure evidence vary. Appended at the
+    end it sat after the variable part and could never be cached; the reminder
+    keeps the format request as the last thing the model reads.
     """
     instructions = schema_instructions(schema)
 
-    def append(prompt: Any) -> list[BaseMessage]:
-        return [*as_messages(prompt), HumanMessage(content=instructions)]
+    def place(prompt: Any) -> list[BaseMessage]:
+        messages = as_messages(prompt)
+        if messages and isinstance(messages[0], SystemMessage):
+            head = SystemMessage(content=f"{instructions}\n\n{flatten_content(messages[0].content)}")
+            rest = messages[1:]
+        else:
+            head = SystemMessage(content=instructions)
+            rest = messages
+        return [head, *rest, HumanMessage(content=REMINDER)]
 
-    return RunnableLambda(append)
+    return RunnableLambda(place)
 
 
 def parse_into(schema: type[BaseModel]) -> Runnable:
@@ -158,3 +177,90 @@ def build_strategies(model: BaseChatModel, schema: type[BaseModel]) -> list[tupl
         raise RuntimeError(f"No usable structured-output strategy for {type(model).__name__}")
 
     return built
+
+
+# ── Remembering what a provider refuses ───────────────────────────
+#
+# The ladder is rebuilt for every call, so a rung the provider cannot serve used
+# to be paid for again on every call: DeepSeek or Qwen through the openai provider
+# refusing a response format, a small Groq Llama answering tool calls with
+# ``tool_use_failed``. Each refusal is a 400 that costs a round trip and holds a
+# reservation in the token window.
+#
+# Only a provider *rejection* (HTTP 400) counts. An answer that came back and
+# failed validation says something about that one output, not about the rung:
+# in a live Gemini run the native rung failed validation twice and served every
+# other call. Two rejections in a row are needed before a rung is skipped, a
+# success clears the count, and the last rung is never skipped, so a model always
+# has something left to try. Kept per process and per provider and model, like
+# the token budget.
+
+REJECTIONS_BEFORE_SKIP = 2
+
+_rejections: dict[tuple[str, str, str], int] = {}
+
+
+def _is_rejection(exc: BaseException) -> bool:
+    return status_code(exc) == 400
+
+
+def skipped_rungs(provider: str, model: str) -> set[str]:
+    """Rungs this provider and model have refused often enough to stop asking."""
+    return {
+        name
+        for (p, m, name), count in _rejections.items()
+        if p == provider and m == model and count >= REJECTIONS_BEFORE_SKIP
+    }
+
+
+def usable_strategies(
+    strategies: list[tuple[str, Runnable]], provider: str, model: str
+) -> list[tuple[str, Runnable]]:
+    """Drop remembered refusals, never leaving the model with nothing to try."""
+    skip = skipped_rungs(provider, model)
+    kept = [(name, runnable) for name, runnable in strategies if name not in skip]
+    if len(kept) < len(strategies):
+        logger.info(
+            "Skipping structured strategy %s for %s:%s; the provider rejected it %d times in a row",
+            ", ".join(sorted(skip)),
+            provider,
+            model,
+            REJECTIONS_BEFORE_SKIP,
+        )
+    return kept or strategies[-1:]
+
+
+def remembering(provider: str, model: str, name: str, runnable: Runnable) -> Runnable:
+    """Count this rung's rejections by the provider; a success clears them."""
+    key = (provider, model, name)
+
+    def note(exc: Exception | None) -> None:
+        if exc is None:
+            _rejections.pop(key, None)
+        elif _is_rejection(exc):
+            _rejections[key] = _rejections.get(key, 0) + 1
+
+    def invoke(prompt: Any, config: Any = None) -> Any:
+        try:
+            result = runnable.invoke(prompt, config)
+        except Exception as exc:
+            note(exc)
+            raise
+        note(None)
+        return result
+
+    async def ainvoke(prompt: Any, config: Any = None) -> Any:
+        try:
+            result = await runnable.ainvoke(prompt, config)
+        except Exception as exc:
+            note(exc)
+            raise
+        note(None)
+        return result
+
+    return RunnableLambda(invoke, afunc=ainvoke, name=f"remember:{name}")
+
+
+def reset_rung_memory() -> None:
+    """Forget every remembered refusal. For tests, like reset_budgets."""
+    _rejections.clear()

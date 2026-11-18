@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "notes": "Ten requirements in three difficulty tiers for the end-to-end benchmark (paper Section VI-F, Table VIII). Each names its endpoints, fields and business rules so that held-out acceptance tests, written by the authors and never shown to the pipeline, can be run against any system's output. Do not edit a requirement once results exist for it; add a new id instead.",
+  "requirements": [
+    {
+      "id": "E1-todo",
+      "tier": "easy",
+      "requirement": "Build a to-do list REST API in Python with FastAPI. A todo has an integer id, a title (required, 1-200 characters), a done flag (default false) and a created_at timestamp. Endpoints: POST /todos creates a todo and returns 201; GET /todos lists all todos and accepts an optional ?done=true|false filter; GET /todos/{id} returns one todo or 404; PATCH /todos/{id} updates title and/or done; DELETE /todos/{id} returns 204. Store data in SQLite."
+    },
+    {
+      "id": "E2-shortener",
+      "tier": "easy",
+      "requirement": "Build a URL shortener REST API in Python with FastAPI. POST /links takes {\"url\": \"...\"}, rejects anything that is not an http or https URL with 422, and returns 201 with a unique 6-character alphanumeric code. GET /{code} redirects to the original URL with status 307 and increments a click counter, or returns 404 for an unknown code. GET /links/{code}/stats returns the original URL, the click count and the creation time. Store data in SQLite."
+    },
+    {
+      "id": "E3-notes",
+      "tier": "easy",
+      "requirement": "Build a notes REST API in Python with FastAPI. A note has an id, a title, a body and a list of tags (lowercase strings). Endpoints: POST /notes (201), GET /notes with an optional ?tag= filter that returns only notes carrying that tag, GET /notes/{id} (404 if missing), PUT /notes/{id} replacing the whole note, DELETE /notes/{id} (204), and GET /tags returning every distinct tag with the number of notes that use it. Store data in SQLite."
+    },
+    {
+      "id": "M1-expenses",
+      "tier": "medium",
+      "requirement": "Build an expense tracker REST API in Python with FastAPI. Users register with POST /auth/register (email, password; duplicate email returns 409) and log in with POST /auth/login, which returns a JWT bearer token. All /expenses routes require the token and only ever show the caller's own expenses. An expense has an id, amount (positive decimal), category (one of food, transport, housing, entertainment, other), description and date. Provide CRUD at /expenses and /expenses/{id}, and GET /reports/monthly?year=YYYY&month=MM returning the total and the per-category totals for that month. Store passwords hashed and data in SQLite."
+    },
+    {
+      "id": "M2-library",
+      "tier": "medium",
+      "requirement": "Build a library management REST API in Python with FastAPI. Resources: books (id, title, author, isbn, copies_total), members (id, name, email) and loans (id, book_id, member_id, loaned_at, due_at, returned_at). POST /loans lends a book for 14 days; it returns 409 if no copy is available or if the member already has 3 active loans. POST /loans/{id}/return marks a loan returned. GET /books/{id}/availability returns how many copies are free. GET /loans/overdue lists active loans past their due date. Provide create, list and get endpoints for books and members. Store data in SQLite."
+    },
+    {
+      "id": "M3-events",
+      "tier": "medium",
+      "requirement": "Build an event booking REST API in Python with FastAPI. An event has an id, name, starts_at and capacity. POST /events creates one; GET /events lists upcoming events. POST /events/{id}/bookings books a seat for {\"attendee_email\": ...}; when the event is full the attendee is added to a first-come waitlist instead and the response says so. A person may hold at most one booking per event (409 otherwise). DELETE /bookings/{id} cancels a booking and automatically promotes the first person on the waitlist. GET /events/{id}/attendees returns the confirmed list and the waitlist in order. Store data in SQLite."
+    },
+    {
+      "id": "M4-inventory",
+      "tier": "medium",
+      "requirement": "Build an inventory REST API in Python with FastAPI. A product has an id, sku (unique), name, quantity and reorder_level. Stock changes only through movements: POST /products/{id}/movements with {\"type\": \"in\"|\"out\", \"quantity\": n, \"reason\": \"...\"}; an outgoing movement that would take quantity below zero is rejected with 409. GET /products/{id}/movements lists the product's movement history newest first. GET /products/low-stock lists products whose quantity is at or below their reorder level. Provide create, list, get and update endpoints for products (quantity cannot be set directly). Store data in SQLite."
+    },
+    {
+      "id": "H1-shop",
+      "tier": "hard",
+      "requirement": "Build an online shop backend in Python as three FastAPI services. A catalog service manages products (id, name, price, stock) with CRUD under /products. An orders service manages a cart per user (POST /carts/{user_id}/items, GET /carts/{user_id}) and checkout: POST /orders/{user_id}/checkout calls the catalog service to confirm and decrement stock, applies a discount code if one is given (codes are percentage discounts stored in the orders service; an unknown code returns 400), and records the order with its line items and total. A payments service exposes POST /payments that accepts an order id and amount and returns a mock success or failure; an order is marked paid or payment_failed accordingly, and a failed payment restores the reserved stock. Each service has its own SQLite database."
+    },
+    {
+      "id": "H2-delivery",
+      "tier": "hard",
+      "requirement": "Build a food delivery backend in Python as three FastAPI services. A restaurants service manages restaurants and their menu items. An orders service accepts orders (customer_id, restaurant_id, items) and moves each order through the states placed, accepted, preparing, out_for_delivery and delivered, or cancelled; it rejects any transition not in that sequence with 409, and only a placed or accepted order may be cancelled. A dispatch service keeps a list of couriers with an available flag; when an order reaches preparing, the orders service asks dispatch to assign the available courier with the fewest deliveries that day, and the order fails to advance with 409 if none is free. GET /orders/{id}/history returns every state change with its timestamp. Each service has its own SQLite database."
+    },
+    {
+      "id": "H3-lms",
+      "tier": "hard",
+      "requirement": "Build a learning platform backend in Python as three FastAPI services. An auth service registers users with a role of instructor or student and issues JWTs that the other services verify with a shared secret. A courses service lets instructors create courses and lessons, and lets students enroll (POST /courses/{id}/enroll) and list their enrolled courses; students cannot create courses (403) and only the owning instructor may edit a course. A quiz service lets an instructor attach a multiple-choice quiz to a course; an enrolled student submits answers once (409 on a second attempt) and receives a score as a percentage, and the instructor can list every student's score for the course. Each service has its own SQLite database."
+    }
+  ]
+}

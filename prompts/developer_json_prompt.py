@@ -18,7 +18,10 @@ production-ready source code. Every file must be fully implemented: no TODOs, no
 stubs, no placeholder logic.
 
 SCOPE
-- Generate every file listed in `project_structure`, for every service.
+- Generate every file listed in `project_structure`, for every service, except
+  tests, pytest configuration and deployment files: other agents write those.
+- Every folder listed in `project_structure` must contain at least one file. An
+  empty folder cannot be delivered; for a Python package, add its `__init__.py`.
 - Implement every feature in the PRD.
 - Clean, modular code with error handling, logging and type hints throughout.
 
@@ -192,10 +195,12 @@ def get_developer_prompt(
     evidence = build_failure_evidence(qa_report, static_report, verification_report)
     is_fix = bool(evidence)
 
-    system_content = BASE_INSTRUCTIONS + (FIX_INSTRUCTIONS if is_fix else "")
-
+    # The system message is identical on every attempt, and the fix-mode rules
+    # travel with the evidence at the end. Providers cache a prompt *prefix*, so a
+    # retry that changed the system message re-paid for the requirement, PRD and
+    # architecture that follow it -- the bulk of the prompt, resent unchanged.
     messages = [
-        SystemMessage(content=system_content),
+        SystemMessage(content=BASE_INSTRUCTIONS),
         HumanMessagePromptTemplate.from_template(
             """
 USER REQUIREMENTS:
@@ -227,7 +232,7 @@ SERVICES TO IMPLEMENT:
     if is_fix:
         messages.append(
             HumanMessagePromptTemplate.from_template(
-                """
+                """{fix_instructions}
 VERIFICATION FAILED. Evidence from compiling and running your previous output:
 
 {evidence}
@@ -237,6 +242,8 @@ Return the Developer Schema output containing ONLY the files you are changing.
             )
         )
         format_kwargs["evidence"] = evidence
+        # A value, not template text: the rules may contain braces.
+        format_kwargs["fix_instructions"] = FIX_INSTRUCTIONS
     else:
         messages.append(
             HumanMessagePromptTemplate.from_template(

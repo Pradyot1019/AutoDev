@@ -38,6 +38,9 @@ _LEAKY_VARS = (
     "AGENTFORGE_ENV_FILE",
     "LLM_TOKENS_PER_MINUTE",
     "LLM_OUTPUT_RESERVE",
+    "GOOGLE_THINKING_BUDGET",
+    "GOOGLE_THINKING_LEVEL",
+    "OPENAI_BASE_URL",
     "LLM_MAX_OUTPUT_TOKENS",
     "MAX_OUTPUT_HEAVY",
     "MAX_OUTPUT_STRUCTURED",
@@ -68,15 +71,17 @@ def isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     from core.config import reset_settings_cache
     from llm import registry
     from llm.budget import reset_budgets
+    from llm.structured import reset_rung_memory
 
     # Settings are cached, so the cache has to be dropped on both sides of the
     # test or environment changes either do not take effect or leak forwards.
     # Token budgets are process-global for the same reason the model cache is,
     # and a budget carried between tests would make one test wait on another's
-    # spending -- in real seconds.
+    # spending -- in real seconds. Remembered rung refusals likewise.
     reset_settings_cache()
     registry.reset_cache()
     reset_budgets()
+    reset_rung_memory()
 
     for name in _LEAKY_VARS:
         monkeypatch.delenv(name, raising=False)
@@ -104,6 +109,7 @@ def isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     reset_settings_cache()
     registry.reset_cache()
     reset_budgets()
+    reset_rung_memory()
 
 
 @pytest.fixture

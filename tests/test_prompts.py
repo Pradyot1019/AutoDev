@@ -197,3 +197,68 @@ class TestTheDataItselfIsStillReadable:
 
         start = text.index(rendered)
         assert json.loads(text[start : start + len(rendered)]) == ARCHITECTURE["services"]
+
+
+# ── A stable prefix, so providers can cache it ───────────────────
+
+STATIC_FAILURE = {
+    "ran": True,
+    "passed": False,
+    "failures": ["backend/app/main.py:3 SyntaxError: invalid syntax"],
+}
+
+
+class TestTheSystemMessageNeverChanges:
+    """Providers discount a repeated prompt *prefix*. A retry or revision that
+    altered the system message re-paid for everything after it."""
+
+    def test_a_developer_retry_keeps_the_first_attempts_prefix(self):
+        first = get_developer_prompt(REQUIREMENT, PRD, ARCHITECTURE)
+        retry = get_developer_prompt(REQUIREMENT, PRD, ARCHITECTURE, static_report=STATIC_FAILURE)
+
+        # System message and the requirement/PRD/architecture message are identical.
+        assert retry[:2] == first[:2]
+        # The fix-mode rules arrive with the evidence, at the end.
+        assert "FIX MODE" not in _text(retry[:2])
+        assert "FIX MODE" in _text(retry[2:]) and "SyntaxError" in _text(retry[2:])
+
+    def test_a_pm_revision_keeps_the_first_drafts_prefix(self):
+        first = get_pm_prompt(REQUIREMENT)
+        revision = get_pm_prompt(REQUIREMENT, previous_prd=PRD, feedback="Add budgets.")
+
+        assert revision[:2] == first[:2]
+        assert "Add budgets." in _text(revision[2:])
+        assert "REVISED PRD" in _text(revision[2:])
+
+    def test_an_architecture_revision_keeps_the_first_drafts_prefix(self):
+        first = get_architect_prompt(REQUIREMENT, PRD)
+        revision = get_architect_prompt(
+            REQUIREMENT, PRD, previous_architecture=ARCHITECTURE, feedback="Split auth out."
+        )
+
+        assert revision[:2] == first[:2]
+        assert "Split auth out." in _text(revision[2:])
+
+
+class TestQaIsAskedForRealCoverage:
+    """A live run passed '1/1 tests' that never touched duplicates, bad input or
+    the tag filter. Passing tests are only evidence if they cover the API."""
+
+    def test_the_qa_prompt_requires_endpoint_and_error_coverage(self):
+        from prompts.qa_json_prompt import SYSTEM_PROMPT
+
+        for rule in ("TEST COVERAGE (REQUIRED)", "Every endpoint", "404", "409", "422", "two tests per endpoint"):
+            assert rule in SYSTEM_PROMPT, rule
+
+    def test_the_schema_no_longer_contradicts_the_prompt_on_paths(self):
+        from schema.qa_schema import TestCase
+
+        assert "tests/" not in TestCase.model_fields["test_file_path"].description.replace("no 'tests/' prefix", "")
+
+
+class TestTheDeveloperIsNotAskedForOtherAgentsFiles:
+    def test_scope_leaves_tests_and_deployment_to_other_agents(self):
+        from prompts.developer_json_prompt import BASE_INSTRUCTIONS
+
+        assert "except\n  tests, pytest configuration and deployment files" in BASE_INSTRUCTIONS
+        assert "`__init__.py`" in BASE_INSTRUCTIONS

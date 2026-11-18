@@ -198,12 +198,10 @@ Produce a REVISED architecture that:
 def get_architect_prompt(user_requirements: str, prd_json, previous_architecture: dict | None = None, feedback: str = ""):
     is_revision = bool(feedback) and bool(previous_architecture)
 
-    system_content = SYSTEM_PROMPT
-    if is_revision:
-        system_content = SYSTEM_PROMPT + "\n\n" + REVISION_INSTRUCTIONS
-
+    # Identical system message on every call so providers can cache the prefix;
+    # the revision rules travel with the feedback at the end.
     messages = [
-        SystemMessage(content=system_content),
+        SystemMessage(content=SYSTEM_PROMPT),
         HumanMessagePromptTemplate.from_template("""
 USER REQUIREMENTS:
 {user_requirements}
@@ -222,6 +220,8 @@ PRODUCT REQUIREMENTS DOCUMENT (PRD):
 
     if is_revision:
         messages.append(HumanMessagePromptTemplate.from_template("""
+{revision_instructions}
+
 PREVIOUS ARCHITECTURE (JSON):
 {previous_architecture}
 
@@ -230,6 +230,7 @@ USER REVISION FEEDBACK:
 
 Produce the full revised architecture that addresses the feedback.
 """))
+        fmt["revision_instructions"] = REVISION_INSTRUCTIONS
         fmt["previous_architecture"] = compact_json(previous_architecture)
         fmt["feedback"] = feedback
     else:

@@ -1,0 +1,49 @@
+{
+ "structured": {
+  "recoverable_shapes": 8,
+  "parse_rung_recovered": 8,
+  "json_loads_recovered": 1,
+  "invalid_shapes": 3,
+  "invalid_rejected": 3
+ },
+ "error_disposition": {
+  "cases": 16,
+  "agree": 16,
+  "accuracy": 1.0,
+  "non_retryable_cases": 9,
+  "calls_spent_retry_everything_3_retries": 27,
+  "parsed_usage_report": {
+   "limit": 8000,
+   "used": 6200,
+   "requested": 3100
+  },
+  "parsed_retry_after_s": 9.5,
+  "misclassified": []
+ },
+ "token_budget": {
+  "workload_calls": 21,
+  "reserved_tokens_range": [
+   2404,
+   7438
+  ],
+  "true_tpm": 8000,
+  "configured_tpm": 12000,
+  "latency_s": 6.0,
+  "none": {
+   "rejections": 48,
+   "makespan_min": 20.766666666666666
+  },
+  "static": {
+   "rejections": 16,
+   "makespan_min": 16.8
+  },
+  "autodev": {
+   "rejections": 1,
+   "makespan_min": 16.3
+  },
+  "oracle": {
+   "rejections": 0,
+   "makespan_min": 16.2
+  }
+ }
+}

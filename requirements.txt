@@ -10,8 +10,9 @@ langchain-core==1.4.0
 langchain-google-genai==4.2.1
 langchain-groq==1.1.2
 langchain-ollama==1.1.0
-langchain-openai==0.3.35
-langchain-cerebras==0.6.0
+# 0.3.x of both required langchain-core<1.0, which conflicts with the pin above.
+langchain-openai==1.2.2
+langchain-cerebras==0.8.2
 
 # ── Config, validation, resilience ───────────────────────────────
 pydantic==2.12.5

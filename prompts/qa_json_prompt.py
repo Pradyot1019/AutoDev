@@ -43,6 +43,23 @@ Your tests are executed with pytest, with the service's source directory on the 
 • Prefer testing pure functions and request/response contracts over implementation details.
 
 ----------------------------------------------------
+TEST COVERAGE (REQUIRED)
+----------------------------------------------------
+
+Passing tests are only evidence if they exercise the behaviour that was asked for. For every service:
+
+• Every endpoint gets at least one test of its success path, asserting the status code and the key
+  fields of the response.
+• Every error the PRD or architecture documents gets a test that triggers it: 404 for a missing
+  resource, 409 for a conflict or duplicate, 422 for invalid input, 401/403 for missing or wrong
+  credentials, and any business rule (limits, capacity, allowed state changes).
+• Every validation rule (required fields, formats, ranges) gets at least one invalid-input test.
+• Many short tests, not a few long ones: one behaviour per test, a few lines each, so a failure names
+  exactly what broke. Aim for at least two tests per endpoint.
+• Spend the output on tests: keep `overall_assessment`, descriptions and recommendations brief.
+• `total_tests_written` counts test functions.
+
+----------------------------------------------------
 SCORING AND ROUTING
 ----------------------------------------------------
 

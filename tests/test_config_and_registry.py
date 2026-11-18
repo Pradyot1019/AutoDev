@@ -472,6 +472,36 @@ class TestOutputTokenCeiling:
         model = registry._build(LLMProvider.GOOGLE, "gemini-2.5-flash", settings)
         assert model.max_output_tokens == 4096
 
+    def test_openai_talks_to_openai_by_default(self):
+        settings = Settings(openai_api_key="test-key")
+        model = registry._build(LLMProvider.OPENAI, "gpt-6-luna", settings)
+        assert model.openai_api_base is None
+
+    def test_openai_base_url_points_at_a_compatible_provider(self):
+        """DeepSeek, Qwen, Kimi and OpenRouter all speak the OpenAI protocol."""
+        settings = Settings(openai_api_key="test-key", openai_base_url="https://api.deepseek.com")
+        model = registry._build(LLMProvider.OPENAI, "deepseek-flash", settings)
+        assert model.openai_api_base == "https://api.deepseek.com"
+        assert model.model_name == "deepseek-flash"
+
+    def test_google_thinking_budget_is_left_to_the_model_by_default(self):
+        settings = Settings(google_api_key="test-key")
+        model = registry._build(LLMProvider.GOOGLE, "gemini-3.5-flash", settings)
+        assert model.thinking_budget is None
+
+    def test_google_thinking_budget_reaches_the_client(self):
+        """Thinking tokens share the output ceiling; 0 keeps them from truncating JSON."""
+        settings = Settings(google_api_key="test-key", google_thinking_budget=0)
+        model = registry._build(LLMProvider.GOOGLE, "gemini-3.5-flash", settings)
+        assert model.thinking_budget == 0
+
+    def test_google_thinking_level_is_sent_instead_of_the_budget(self):
+        """gemini-3.5-flash-lite rejects a budget of 0 but accepts a level."""
+        settings = Settings(google_api_key="test-key", google_thinking_budget=0, google_thinking_level="minimal")
+        model = registry._build(LLMProvider.GOOGLE, "gemini-3.5-flash-lite", settings)
+        assert model.thinking_level == "minimal"
+        assert model.thinking_budget is None
+
     def test_the_ceiling_is_part_of_the_model_cache_key(self):
         """Same reason temperature is: it changes the client that gets built.
 

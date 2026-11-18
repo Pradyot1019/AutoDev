@@ -175,8 +175,9 @@ function BuildCta({
           Build your next POC
         </h1>
         <p className="mt-2.5 text-[14.5px] leading-relaxed opacity-70">
-          Describe the product. Six agents write the brief, design the architecture, generate the
-          code and run the tests — pausing twice so you can steer.
+          Describe the product. Four agents write the brief, design the architecture, generate the
+          code and review it; two automated checks compile it and run its tests — pausing twice so
+          you can steer.
         </p>
       </div>
 

@@ -1,0 +1,153 @@
+{
+ "rq1": {
+  "n_mutants": 141,
+  "n_build": 75,
+  "n_logic": 66,
+  "detected_all": 0.8865248226950354,
+  "detected_build": 1.0,
+  "detected_logic": 0.7575757575757576,
+  "n_detected": 125,
+  "caught_by_static": 75,
+  "share_of_detected_stopped_before_qa": 0.6,
+  "static_median_ms": 27.553805000025022,
+  "tests_median_s": 0.6798562380000703,
+  "speed_ratio": 24.673769666274872,
+  "false_positives": 0,
+  "by_operator": {
+   "syntax_error": {
+    "n": 29,
+    "static": 29,
+    "tests": 29,
+    "either": 29
+   },
+   "undefined_name": {
+    "n": 32,
+    "static": 32,
+    "tests": 32,
+    "either": 32
+   },
+   "missing_import": {
+    "n": 10,
+    "static": 10,
+    "tests": 9,
+    "either": 10
+   },
+   "invalid_json": {
+    "n": 4,
+    "static": 4,
+    "tests": 4,
+    "either": 4
+   },
+   "arith_swap": {
+    "n": 20,
+    "static": 0,
+    "tests": 19,
+    "either": 19
+   },
+   "compare_swap": {
+    "n": 15,
+    "static": 0,
+    "tests": 5,
+    "either": 5
+   },
+   "return_none": {
+    "n": 31,
+    "static": 0,
+    "tests": 26,
+    "either": 26
+   }
+  },
+  "missed": [
+   {
+    "service": "expense-tracker",
+    "op": "compare_swap",
+    "rel": "app/ledger.py"
+   },
+   {
+    "service": "expense-tracker",
+    "op": "return_none",
+    "rel": "app/ledger.py"
+   },
+   {
+    "service": "expense-tracker",
+    "op": "return_none",
+    "rel": "app/ledger.py"
+   },
+   {
+    "service": "inventory",
+    "op": "compare_swap",
+    "rel": "app/stock.py"
+   },
+   {
+    "service": "inventory",
+    "op": "compare_swap",
+    "rel": "app/stock.py"
+   },
+   {
+    "service": "inventory",
+    "op": "compare_swap",
+    "rel": "app/stock.py"
+   },
+   {
+    "service": "inventory",
+    "op": "compare_swap",
+    "rel": "app/stock.py"
+   },
+   {
+    "service": "inventory",
+    "op": "compare_swap",
+    "rel": "app/stock.py"
+   },
+   {
+    "service": "inventory",
+    "op": "return_none",
+    "rel": "app/stock.py"
+   },
+   {
+    "service": "authentication",
+    "op": "arith_swap",
+    "rel": "app/auth.py"
+   },
+   {
+    "service": "authentication",
+    "op": "compare_swap",
+    "rel": "app/auth.py"
+   },
+   {
+    "service": "authentication",
+    "op": "compare_swap",
+    "rel": "app/auth.py"
+   },
+   {
+    "service": "authentication",
+    "op": "compare_swap",
+    "rel": "app/auth.py"
+   },
+   {
+    "service": "notification-worker",
+    "op": "compare_swap",
+    "rel": "app/worker.py"
+   },
+   {
+    "service": "notification-worker",
+    "op": "return_none",
+    "rel": "app/worker.py"
+   },
+   {
+    "service": "notification-worker",
+    "op": "return_none",
+    "rel": "app/worker.py"
+   }
+  ]
+ },
+ "rq2": {
+  "trials": 40,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "exact_match_trials": 40,
+  "developer_calls_surgical": 57,
+  "developer_calls_full": 160,
+  "reduction": 0.64375
+ }
+}

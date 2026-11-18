@@ -64,6 +64,22 @@ UPSTREAM_503 = (
     "Error code: 503 - {'error': {'message': 'Service Unavailable', "
     "'type': 'internal_server_error'}}"
 )
+# Gemini free tier, 2026-11-17, abridged: the daily request quota, ~14 hours out.
+GEMINI_DAILY_429 = (
+    "Error calling model 'gemini-3.5-flash' (RESOURCE_EXHAUSTED): 429 RESOURCE_EXHAUSTED. "
+    "{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your "
+    "plan and billing details.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': "
+    "'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': "
+    "'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': "
+    "'GenerateRequestsPerDayPerProjectPerModel-FreeTier'}]}, {'@type': "
+    "'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '50107s'}]}}"
+)
+GROQ_DAILY_429 = (
+    "Error code: 429 - {'error': {'message': 'Rate limit reached for model "
+    "openai/gpt-oss-120b in organization org_abc service tier on_demand on tokens per "
+    "day (TPD): Limit 200000, Used 199500, Requested 2436. Please try again in 7m12s.', "
+    "'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+)
 
 
 class FakeResponse:
@@ -190,6 +206,20 @@ class TestFatalErrors:
         """Degrading makes it worse: every lower rung appends the schema to the
         prompt, so the request that was already too big only grows."""
         assert classify(Exception(TOO_LARGE_413)) is Disposition.ABORT
+
+    def test_a_daily_quota_aborts_instead_of_retrying(self):
+        """Waiting seconds cannot clear a quota that resets in hours."""
+        assert classify(Exception(GEMINI_DAILY_429)) is Disposition.ABORT
+        assert classify(FakeAPIError(GEMINI_DAILY_429, 429)) is Disposition.ABORT
+        assert classify(Exception(GROQ_DAILY_429)) is Disposition.ABORT
+
+    def test_a_per_minute_limit_is_still_retried(self):
+        assert classify(Exception(RATE_LIMIT_429)) is Disposition.RETRY
+        assert classify(FakeAPIError("Rate limit reached; try again in 2s", 429)) is Disposition.RETRY
+
+    def test_a_server_error_mentioning_a_day_is_still_retried(self):
+        """Only a 429 (or a status-less error) can be a quota."""
+        assert classify(FakeAPIError("upstream down for the day", 503)) is Disposition.RETRY
 
     def test_a_413_is_not_mistaken_for_a_rate_limit(self):
         """Its body says 'tokens per minute' and Groq tags it rate_limit_exceeded,

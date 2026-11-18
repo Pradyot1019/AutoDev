@@ -23,12 +23,12 @@ from pydantic import BaseModel
 
 from core.config import LLMProvider, ProviderAccount, Purpose, Settings, get_settings
 from core.logging import get_logger
-from llm.accounting import Outcome, outcome_for, record_attempt
+from llm.accounting import Outcome, is_rate_limited, outcome_for, record_attempt
 from llm.budget import Reservation, TokenBudget, budget_for, estimate_tokens
 from llm.content import flatten_content
 from llm.errors import Disposition, Retrier, classify, reported_usage
 from llm.routing import ModelTier, RoutePlan, RouteSignal, plan_for
-from llm.structured import as_messages, build_strategies
+from llm.structured import as_messages, build_strategies, remembering, usable_strategies
 
 logger = get_logger(__name__)
 
@@ -176,6 +176,13 @@ def _build(
     if provider is LLMProvider.GOOGLE:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
+        # Only passed when set: older Gemini models reject a thinking config. The
+        # level wins over the budget because some models accept only the level.
+        thinking: dict[str, Any] = {}
+        if settings.google_thinking_level:
+            thinking["thinking_level"] = settings.google_thinking_level
+        elif settings.google_thinking_budget is not None:
+            thinking["thinking_budget"] = settings.google_thinking_budget
         return ChatGoogleGenerativeAI(
             model=model,
             google_api_key=key,
@@ -183,6 +190,7 @@ def _build(
             timeout=timeout,
             max_output_tokens=max_output,
             max_retries=0,  # retries are handled by the runnable wrapper
+            **thinking,
         )
 
     if provider is LLMProvider.GROQ:
@@ -200,6 +208,8 @@ def _build(
     if provider is LLMProvider.OPENAI:
         from langchain_openai import ChatOpenAI
 
+        # Only passed when set, so OpenAI itself keeps the SDK's own default.
+        endpoint = {"base_url": settings.openai_base_url} if settings.openai_base_url else {}
         return ChatOpenAI(
             model=model,
             api_key=key,
@@ -207,6 +217,7 @@ def _build(
             timeout=timeout,
             max_tokens=max_output,
             max_retries=0,
+            **endpoint,
         )
 
     if provider is LLMProvider.CEREBRAS:
@@ -475,7 +486,12 @@ def _metered(
     reserve = max(0, settings.llm_output_reserve, ceiling)
 
     def observe(
-        prompt_tokens: int, claim: int, started: float, actual: int | None, outcome: Outcome
+        prompt_tokens: int,
+        claim: int,
+        started: float,
+        actual: int | None,
+        outcome: Outcome,
+        rate_limited: bool = False,
     ) -> None:
         record_attempt(
             purpose=purpose.value,
@@ -504,6 +520,9 @@ def _metered(
             escalation_reason=(
                 plan.escalation_reason if plan is not None and plan.escalated else None
             ) or None,
+            # A 429, counted apart from the other transient failures it shares
+            # the "retry" outcome with.
+            rate_limited=rate_limited,
         )
 
     def invoke(prompt: Any, config: Any = None) -> Any:
@@ -518,7 +537,7 @@ def _metered(
             response = runnable.invoke(prompt, config)
         except Exception as exc:
             _learn_from(budget, exc)
-            observe(prompt_tokens, claim, started, None, outcome_for(exc))
+            observe(prompt_tokens, claim, started, None, outcome_for(exc), is_rate_limited(exc))
             raise
 
         actual = usage_tokens(response)
@@ -536,7 +555,7 @@ def _metered(
             response = await runnable.ainvoke(prompt, config)
         except Exception as exc:
             _learn_from(budget, exc)
-            observe(prompt_tokens, claim, started, None, outcome_for(exc))
+            observe(prompt_tokens, claim, started, None, outcome_for(exc), is_rate_limited(exc))
             raise
 
         actual = usage_tokens(response)
@@ -797,7 +816,10 @@ def get_structured_llm(
 
         for resource in group:
             rungs: list[Runnable] = []
-            for name, runnable in build_strategies(resource.client, schema):
+            strategies = usable_strategies(
+                build_strategies(resource.client, schema), provider.value, resource.model_name
+            )
+            for name, runnable in strategies:
                 logger.debug("Structured strategy available: %s", name)
                 label = f"{resource.label}:{name}"
                 # Metering sits innermost so every attempt is paced, including retries.
@@ -816,7 +838,9 @@ def get_structured_llm(
                 # Every rung is retried, not just the preferred one: a rate limit
                 # on the last rung is as transient as one on the first, and giving
                 # up there ends the run with no answer at all.
-                rungs.append(_retried(metered, settings, label=label))
+                retried = _retried(metered, settings, label=label)
+                # Outermost, so it sees the rung's final answer after any retries.
+                rungs.append(remembering(provider.value, resource.model_name, name, retried))
 
             ladder = _first_success(rungs, label=resource.label, stop_on_abort=True)
             per_account.append((ladder, resource.budget))

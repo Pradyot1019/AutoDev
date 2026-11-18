@@ -178,7 +178,7 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
                 failed.append(slug)
                 continue
 
-            output = response.model_dump(mode="json")
+            output = _claim_single_service(response.model_dump(mode="json"), service, slug, slugs)
 
             # Checked before anything on disk is touched. An answer with no
             # usable file in it must not be allowed to replace working code with
@@ -352,6 +352,34 @@ def _seed(
     for field in ("setup_instructions", "dependency_files", "development_notes"):
         if previous.get(field):
             combined[field] = copy.deepcopy(previous[field])
+
+
+def _claim_single_service(
+    output: dict[str, Any], service: dict[str, Any], slug: str, project_slugs: list[str]
+) -> dict[str, Any]:
+    """Give a lone returned service the name of the one that was asked for.
+
+    Each call asks for exactly one service, so a response holding exactly one
+    service is that service when the model merely misspelled it. The prompt says
+    to spell the name as the architecture does, but a live run on
+    gemini-3-flash-preview answered "Bookmark API Service" with "bookmark_api",
+    and the whole answer was discarded as off-target.
+
+    Left alone: a response with several services (which was meant is no longer
+    certain), and one named after a *different* service of this project -- that
+    is code for the wrong service, and renaming it would write it into this one.
+    """
+    services = output.get("services") or []
+    if len(services) != 1:
+        return output
+    returned = str(services[0].get("service_name") or "")
+    returned_slug = slugify(returned, fallback="")
+    if returned_slug == slug or returned_slug in project_slugs:
+        return output
+    expected = str(service.get("name") or slug)
+    logger.info("Service %s came back named %r; using the requested name %r", slug, returned, expected)
+    renamed = {**services[0], "service_name": expected}
+    return {**output, "services": [renamed]}
 
 
 def _has_usable_files(output: dict[str, Any], slug: str) -> bool:
