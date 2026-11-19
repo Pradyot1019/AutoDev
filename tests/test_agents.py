@@ -370,6 +370,40 @@ class TestQaAgent:
         assert "FILE: backend-api/app/calculator.py" in review_prompt
         assert "FILE: backend-api/app/store.py" in review_prompt
 
+    async def test_the_review_is_trimmed_to_fit_the_per_minute_budget(
+        self, coded_state, stub_llm, monkeypatch
+    ):
+        """Live: 8 triaged files made a 9,567-token call against an 8,000 window,
+        and QA failed without making it. Files now drop from the end until it fits."""
+        from agents import qa_agent as qa_module
+        from core import manifest as manifest_util
+        from core.config import reset_settings_cache
+
+        async def review_everything(prompt, purpose=None, settings=None):
+            return "no list here"
+
+        monkeypatch.setattr("llm.registry.allm_call", review_everything)
+        # Each file costs 1,000 tokens in this model of the call; the window holds 1,500.
+        monkeypatch.setattr(qa_module, "_review_tokens", lambda prd, arch, manifest, code: 1000 * code.count("FILE:"))
+        monkeypatch.setenv("LLM_TOKENS_PER_MINUTE", "1500")
+        reset_settings_cache()
+
+        update = await qa_agent(coded_state)
+
+        review_prompt = "\n".join(fakes._render(p) for p in stub_llm.prompts)
+        first, *rest = manifest_util.qualified_paths(coded_state["code_manifest"])
+        assert update["status"][Stage.QA.value] == AgentStatus.COMPLETED.value
+        assert f"FILE: {first}" in review_prompt
+        assert not any(f"FILE: {path}" in review_prompt for path in rest)
+
+    def test_the_review_cost_includes_the_output_it_reserves(self, coded_state):
+        from agents.qa_agent import _review_tokens
+        from core.config import Purpose, get_settings
+
+        tokens = _review_tokens(coded_state["prd"], coded_state["architecture"], coded_state["code_manifest"], "")
+
+        assert tokens > get_settings().max_output_for(Purpose.STRUCTURED)
+
     async def test_redundant_tests_prefix_is_stripped(self, coded_state, workspace, stub_llm):
         report = fakes.build_qa_report()
         report.service_reports[0].test_cases[0].test_file_path = "tests/test_auth.py"
@@ -379,6 +413,25 @@ class TestQaAgent:
 
         assert (workspace.tests / fakes.SERVICE_SLUG / "test_auth.py").is_file()
         assert not (workspace.tests / fakes.SERVICE_SLUG / "tests").exists()
+
+    async def test_cases_sharing_a_file_are_joined_not_overwritten(self, coded_state, workspace, stub_llm):
+        """Live: 11 cases became 4 files, each holding only its last case."""
+        report = fakes.build_qa_report()
+        cases = report.service_reports[0].test_cases
+        first = cases[0]
+        second = first.model_copy(
+            update={"test_code": "def test_second():\n    assert client is not None\n"}
+        )
+        first.test_code = "client = object()\n\n\ndef test_first():\n    assert client\n"
+        report.service_reports[0].test_cases = [first, second]
+        stub_llm.set(QASchema, report)
+
+        await qa_agent(coded_state)
+
+        written = (workspace.tests / fakes.SERVICE_SLUG / first.test_file_path).read_text(encoding="utf-8")
+        assert written.index("client = object()") < written.index("def test_second")
+        assert "def test_first" in written
+        compile(written, first.test_file_path, "exec")
 
     async def test_empty_manifest_is_a_reported_failure(self, base_state, stub_llm):
         update = await qa_agent({**base_state, "prd": {}, "architecture": {}, "code_manifest": {}})

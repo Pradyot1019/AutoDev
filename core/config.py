@@ -126,6 +126,10 @@ class Settings(BaseSettings):
     # rejects thinking_budget=0 with 400 INVALID_ARGUMENT but accepts "minimal".
     # When set it is sent instead of the budget. minimal | low | medium | high.
     google_thinking_level: str | None = None
+    # The same problem on Groq's reasoning models (gpt-oss): a live Developer call
+    # under a 4,096 ceiling came back empty on every rung, the reasoning having
+    # spent the output. low | medium | high; None leaves the model's default.
+    groq_reasoning_effort: str | None = None
 
     # ── Credentials ──────────────────────────────────────────────
     google_api_key: str | None = None

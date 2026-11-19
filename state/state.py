@@ -62,6 +62,11 @@ class MultiAgent(TypedDict, total=False):
     # something; recording it lets the next pass skip what already exists.
     generated_services: list[str]
     failed_services: list[str]
+    # Set when a developer pass produced no service at all, but for a reason a
+    # fresh attempt could plausibly clear (a model that returned nothing usable),
+    # rather than one it cannot (a rejected key, a daily quota). The developer
+    # router retries on it while the attempt budget lasts.
+    developer_can_retry: bool
     # How many times each service has been moved to a stronger model because
     # verification said the last one was not good enough, by slug. Separate from
     # `retry_count` on purpose: that counts whole developer passes, this counts
@@ -112,6 +117,7 @@ def initial_state(run_id: str, user_requirements: str) -> MultiAgent:
         "code_manifest": {},
         "generated_services": [],
         "failed_services": [],
+        "developer_can_retry": False,
         "service_escalations": {},
         "service_attempts": {},
         "qa_report": {},

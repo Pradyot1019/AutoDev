@@ -20,10 +20,12 @@ from prompts.developer_pdf_prompt import get_developer_doc_prompt
 from prompts.pm_json_prompt import get_pm_prompt
 from prompts.pm_pdf_prompt import get_pm_doc_prompt
 from prompts.projections import (
+    architecture_for_qa,
     architecture_preamble,
     architecture_services,
     prd_for_architect,
     prd_for_developer,
+    prd_for_qa,
 )
 from prompts.qa_json_prompt import get_qa_prompt
 from prompts.qa_pdf_prompt import get_qa_doc_prompt
@@ -139,10 +141,16 @@ class TestStructuredPromptsUseIt:
         assert compact_json(PRD) in text
         assert "Add budget alerts" in text
 
-    def test_qa_prompt_embeds_both_documents_compactly(self):
+    def test_qa_prompt_embeds_its_projections_compactly(self):
+        """QA judges against behaviour and endpoints; the full documents made its
+        fixed cost alone exceed an 8,000-token window."""
         text = _text(get_qa_prompt(PRD, ARCHITECTURE, MANIFEST, "print('hi')"))
-        assert compact_json(PRD) in text
-        assert compact_json(ARCHITECTURE) in text
+        assert compact_json(prd_for_qa(PRD)) in text
+        assert compact_json(architecture_for_qa(ARCHITECTURE)) in text
+        # What the reviewer does not need is not sent.
+        assert "complexity_estimate" not in text
+        assert "system_overview" not in text
+        assert "Login" in text and "FastAPI" in text
 
     def test_qa_triage_embeds_its_slices_compactly(self):
         """Triage sends a projection of each document plus the manifest paths."""
@@ -254,6 +262,124 @@ class TestQaIsAskedForRealCoverage:
         from schema.qa_schema import TestCase
 
         assert "tests/" not in TestCase.model_fields["test_file_path"].description.replace("no 'tests/' prefix", "")
+
+
+COLLECTION_FAILURE = (
+    "ImportError while importing test module 'D:\\runs\\x\\tests\\api\\test_add.py'.\n"
+    "Hint: make sure your test modules/packages have valid Python names.\n"
+    "Traceback:\n"
+    "C:\\Python\\Lib\\importlib\\__init__.py:90: in import_module\n"
+    "    return _bootstrap._gcd_import(name[level:], package, level)\n"
+    "test_add.py:1: in <module>\n"
+    "    from app.main import app\n"
+    "app\\service\\habit_service.py:5: in <module>\n"
+    "    from app.repository.habit_repository import create_habit_record\n"
+    "E   ImportError: cannot import name 'create_habit_record' from 'app.repository.habit_repository'\n"
+)
+
+
+def _verification(*messages: str) -> dict:
+    return {
+        "ran": True,
+        "passed": False,
+        "services": [
+            {
+                "service": "api",
+                "passed": 0,
+                "failed": 0,
+                "errors": len(messages),
+                "failures": [{"test": f"test_{i}", "message": m} for i, m in enumerate(messages)],
+            }
+        ],
+    }
+
+
+class TestFailureEvidenceIsCondensed:
+    """Live: seven copies of one collection failure pushed a fix call past the budget."""
+
+    def test_a_collection_failure_keeps_the_cause_and_the_place(self):
+        from prompts.developer_json_prompt import condense_failure
+
+        condensed = condense_failure(COLLECTION_FAILURE)
+
+        assert condensed == (
+            "ImportError: cannot import name 'create_habit_record' from "
+            "'app.repository.habit_repository' (at app\\service\\habit_service.py:5)"
+        )
+
+    def test_the_harness_conftest_is_never_named_as_the_place(self):
+        from prompts.developer_json_prompt import condense_failure
+
+        message = (
+            "E   Failed: Could not import an ASGI app. Tried:\n"
+            "E     app.main: ImportError: boom (at app/core/config.py:2)\n"
+            "\n..\\..\\tests\\api\\conftest.py:48: Failed\n"
+        )
+
+        condensed = condense_failure(message)
+
+        assert "app/core/config.py:2" in condensed
+        assert "conftest.py" not in condensed
+
+    def test_a_message_without_error_lines_is_kept(self):
+        from prompts.developer_json_prompt import condense_failure
+
+        assert condense_failure("assert 1 == 2") == "assert 1 == 2"
+
+    def test_identical_failures_are_listed_once(self):
+        from prompts.developer_json_prompt import build_failure_evidence
+
+        evidence = build_failure_evidence(None, None, _verification(*[COLLECTION_FAILURE] * 7))
+
+        assert evidence.count("cannot import name") == 1
+        assert "test_0, test_1, test_2, test_3, test_4 and 2 more" in evidence
+        assert "Hint:" not in evidence
+
+    def test_leaner_levels_carry_less(self):
+        from prompts.developer_json_prompt import EVIDENCE_LEVELS, build_failure_evidence
+
+        report = _verification(*[f"E   AssertionError: case {i} " + "x" * 500 for i in range(20)])
+        sizes = [len(build_failure_evidence(None, None, report, level)) for level in EVIDENCE_LEVELS]
+
+        assert sizes == sorted(sizes, reverse=True) and sizes[0] > sizes[-1]
+
+
+class TestTheDeveloperCallFitsTheBudget:
+    def test_the_evidence_is_condensed_until_the_call_fits(self, monkeypatch):
+        from agents.developer_agent import _call_tokens, _prompt_within_budget
+        from core.config import reset_settings_cache
+        from prompts.developer_json_prompt import EVIDENCE_LEVELS
+
+        report = _verification(*[f"E   AssertionError: case {i} " + "x" * 500 for i in range(15)])
+
+        def build(detail):
+            return get_developer_prompt(REQUIREMENT, PRD, ARCHITECTURE, verification_report=report, detail=detail)
+
+        full = _call_tokens(build(EVIDENCE_LEVELS[0]), None)
+        lean = _call_tokens(build(EVIDENCE_LEVELS[-1]), None)
+        assert lean < full
+
+        monkeypatch.setenv("LLM_TOKENS_PER_MINUTE", str(lean))
+        reset_settings_cache()
+
+        chosen = _prompt_within_budget("api", build, demand=None)
+
+        assert _call_tokens(chosen, None) <= lean
+        assert "VERIFICATION FAILED" in _text(chosen)
+
+    def test_a_prompt_that_fits_is_sent_in_full(self, monkeypatch):
+        from agents.developer_agent import _prompt_within_budget
+        from core.config import reset_settings_cache
+        from prompts.developer_json_prompt import EVIDENCE_LEVELS
+
+        monkeypatch.setenv("LLM_TOKENS_PER_MINUTE", "1000000")
+        reset_settings_cache()
+        report = _verification("E   AssertionError: boom")
+
+        def build(detail):
+            return get_developer_prompt(REQUIREMENT, PRD, ARCHITECTURE, verification_report=report, detail=detail)
+
+        assert _prompt_within_budget("api", build, demand=None) == build(EVIDENCE_LEVELS[0])
 
 
 class TestTheDeveloperIsNotAskedForOtherAgentsFiles:

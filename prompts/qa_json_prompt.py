@@ -6,6 +6,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 
 from core import manifest as manifest_util
+from prompts.projections import architecture_for_qa, prd_for_qa
 from utils.json_utils import compact_json
 
 SYSTEM_PROMPT = """
@@ -108,8 +109,9 @@ executable tests for each service.
     )
 
     return prompt.format_messages(
-        prd_json=compact_json(prd_json),
-        architect_json=compact_json(architect_json),
+        # Projected, not the whole documents: see prompts/projections.py.
+        prd_json=compact_json(prd_for_qa(prd_json)),
+        architect_json=compact_json(architecture_for_qa(architect_json)),
         manifest_summary=manifest_util.summarise(code_manifest),
         actual_code_content=actual_code_content or "(no files were selected for review)",
     )

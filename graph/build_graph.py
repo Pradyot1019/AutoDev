@@ -80,8 +80,20 @@ def architecture_review_router(state: MultiAgent) -> str:
 
 
 def developer_router(state: MultiAgent) -> str:
-    """Only run the gates if there is code to check."""
+    """Only run the gates if there is code to check.
+
+    A pass that produced no code at all used to end the run, however many
+    attempts were left. When the cause was the model's answer rather than the
+    account (see ``developer_can_retry``), another attempt is cheap and often
+    succeeds, so it gets one while the budget lasts.
+    """
     if _failed(state, Stage.DEVELOPER):
+        if state.get("developer_can_retry") and not _out_of_retries(state):
+            logger.warning(
+                "The Developer produced no code on attempt %d; trying again",
+                state.get("retry_count", 0),
+            )
+            return DEVELOPER
         return _halt(Stage.DEVELOPER)
     return STATIC_GATE
 
@@ -197,7 +209,7 @@ def build_workflow(checkpointer: object | None = None):
     graph.add_conditional_edges(
         DEVELOPER,
         developer_router,
-        {STATIC_GATE: STATIC_GATE, "END": END},
+        {DEVELOPER: DEVELOPER, STATIC_GATE: STATIC_GATE, "END": END},
     )
 
     graph.add_conditional_edges(

@@ -16,6 +16,8 @@ from __future__ import annotations
 import copy
 from typing import Any
 
+import pytest
+
 from agents.attribution import attribution_map, implicated_services
 from core.contracts import (
     CHECK_NAME,
@@ -205,16 +207,38 @@ class TestDerivation:
         assert service.folders == ["app", "app/core"]
         assert service.key_files == ["app/main.py", "app/testing_helpers.py", "app/latest.py"]
 
+    def test_files_listed_as_folders_are_not_required_as_folders(self):
+        """Live: folders held app/main.py, Dockerfile, requirements.txt, alembic.ini."""
+        document = architecture()
+        document["project_structure"][0]["folders"] = [
+            "app",
+            "app/main.py",
+            "Dockerfile",
+            "requirements.txt",
+            "alembic.ini",
+            ".github",
+            "migrations",
+            "app/api/v1",
+        ]
+
+        assert derive_contract(document).service(BACKEND_SLUG).folders == ["app", "migrations", "app/api/v1"]
+
     def test_a_missing_dockerfile_does_not_fail_the_gate(self, workspace: RunWorkspace):
         document = architecture()
-        document["project_structure"][0]["key_files"] = ["app/main.py", "Dockerfile"]
-        source = workspace.service_source(BACKEND_SLUG)
-        (source / "app").mkdir(parents=True)
-        (source / "app" / "main.py").write_text("app = None\n")
+        document["project_structure"][0]["key_files"] = ["app/main.py", "app/models.py", "Dockerfile"]
+        complete(workspace)
 
-        violations = check_contract(derive_contract(document), workspace)
+        assert failures_of(check_contract(derive_contract(document), {}, workspace)) == []
 
-        assert not any("Dockerfile" in line for line in violations)
+    def test_a_missing_required_file_still_fails_the_gate(self, workspace: RunWorkspace):
+        """The control: the check above passes because of the exclusion, not by accident."""
+        document = architecture()
+        document["project_structure"][0]["key_files"] = ["app/main.py", "app/models.py", "app/extra.py"]
+        complete(workspace)
+
+        failures = failures_of(check_contract(derive_contract(document), {}, workspace))
+
+        assert any("app/extra.py" in failure for failure in failures)
 
     def test_the_real_fake_architecture_derives_cleanly(self):
         """The fixture the rest of the suite drives the pipeline with."""
@@ -423,16 +447,19 @@ class TestMissingFiles:
 
 
 class TestDanglingDependencies:
-    def test_a_dependency_on_a_service_that_does_not_exist_is_reported(
-        self, workspace: RunWorkspace
+    def test_a_dependency_on_a_service_that_does_not_exist_is_logged_not_failed(
+        self, workspace: RunWorkspace, caplog: pytest.LogCaptureFixture
     ):
+        """An architecture defect no code can repair: live, it sank two attempts
+        whose code compiled, so it is reported for review instead of failing."""
         document = architecture()
         document["services"][1]["dependencies"] = ["Reporting Service"]
         complete(workspace)
 
         failures = failures_of(check_contract(derive_contract(document), {}, workspace))
 
-        assert any("reporting-service" in failure for failure in failures)
+        assert failures == []
+        assert "reporting-service" in caplog.text
 
     def test_a_dependency_on_a_declared_service_is_fine(self, workspace: RunWorkspace):
         complete(workspace)

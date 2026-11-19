@@ -196,6 +196,8 @@ def _build(
     if provider is LLMProvider.GROQ:
         from langchain_groq import ChatGroq
 
+        # Only passed when set: non-reasoning Groq models reject the parameter.
+        effort = {"reasoning_effort": settings.groq_reasoning_effort} if settings.groq_reasoning_effort else {}
         return ChatGroq(
             model=model,
             api_key=key,
@@ -203,6 +205,7 @@ def _build(
             timeout=timeout,
             max_tokens=max_output,
             max_retries=0,
+            **effort,
         )
 
     if provider is LLMProvider.OPENAI:

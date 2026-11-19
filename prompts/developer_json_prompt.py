@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from typing import Any
 
 from langchain_core.messages import SystemMessage
@@ -91,18 +93,68 @@ Priority order: syntax and import errors, then failing tests, then critical bugs
 """
 
 
-def _render_static_report(report: dict[str, Any]) -> str:
+@dataclass(frozen=True)
+class EvidenceDetail:
+    """How much of each report a fix prompt carries."""
+
+    static_failures: int = 40
+    test_failures: int = 15
+    message_chars: int = 600
+
+
+# Most to least detailed. The developer agent steps down this list until its call
+# fits the per-minute budget: in a live run seven test failures pushed the last
+# fix call to 8,006 tokens against an 8,000 window, and the run ended there.
+EVIDENCE_LEVELS: tuple[EvidenceDetail, ...] = (
+    EvidenceDetail(),
+    EvidenceDetail(static_failures=20, test_failures=8, message_chars=300),
+    EvidenceDetail(static_failures=10, test_failures=4, message_chars=150),
+)
+
+_PYTEST_ERROR_LINE = re.compile(r"^E\s+(?P<text>.+)$")
+_PYTEST_LOCATION = re.compile(r"^(?P<loc>[^\s].*\.py:\d+):")
+
+
+def condense_failure(message: str) -> str:
+    """The part of a pytest failure that says what went wrong, and where.
+
+    A collection failure is mostly boilerplate ("Hint: make sure your test
+    modules/packages have valid Python names", an importlib frame); the cause is
+    the ``E`` line, and the place is the last frame inside the project. Messages
+    without ``E`` lines are returned as they are.
+    """
+    errors: list[str] = []
+    location = ""
+    for raw in message.splitlines():
+        line = raw.rstrip()
+        match = _PYTEST_ERROR_LINE.match(line)
+        if match:
+            text = match.group("text").strip()
+            if text and text not in errors:
+                errors.append(text)
+            continue
+        where = _PYTEST_LOCATION.match(line.strip())
+        # Not the harness conftest: it is where the app was loaded, never what broke.
+        if where and not any(skip in line for skip in ("site-packages", "importlib", "conftest.py")):
+            location = where.group("loc")
+    if not errors:
+        return message.strip()
+    return " | ".join(errors) + (f" (at {location})" if location else "")
+
+
+def _render_static_report(report: dict[str, Any], detail: EvidenceDetail = EVIDENCE_LEVELS[0]) -> str:
     failures = report.get("failures") or []
     if not failures:
         return ""
+    limit = detail.static_failures
     lines = ["COMPILE AND LINT FAILURES (highest priority):"]
-    lines += [f"  - {failure}" for failure in failures[:40]]
-    if len(failures) > 40:
-        lines.append(f"  ...and {len(failures) - 40} more")
+    lines += [f"  - {failure}" for failure in failures[:limit]]
+    if len(failures) > limit:
+        lines.append(f"  ...and {len(failures) - limit} more")
     return "\n".join(lines)
 
 
-def _render_verification_report(report: dict[str, Any]) -> str:
+def _render_verification_report(report: dict[str, Any], detail: EvidenceDetail = EVIDENCE_LEVELS[0]) -> str:
     services = report.get("services") or []
     blocks: list[str] = []
 
@@ -121,11 +173,20 @@ def _render_verification_report(report: dict[str, Any]) -> str:
         if service.get("error"):
             block.append(f"  runner error: {service['error']}")
 
-        for failure in failures[:15]:
-            block.append(f"  FAILED {failure.get('test', '?')}")
-            message = (failure.get("message") or "").strip()
+        # Tests that failed for the same reason are listed once: seven collection
+        # failures from one broken import are one problem, not seven.
+        grouped: dict[str, list[str]] = {}
+        for failure in failures:
+            message = condense_failure(failure.get("message") or "")[: detail.message_chars]
+            grouped.setdefault(message, []).append(str(failure.get("test", "?")))
+
+        for message, tests in list(grouped.items())[: detail.test_failures]:
+            shown = ", ".join(tests[:5]) + (f" and {len(tests) - 5} more" if len(tests) > 5 else "")
+            block.append(f"  FAILED {shown}")
             if message:
-                block.append(f"    {message[:600]}")
+                block.append(f"    {message}")
+        if len(grouped) > detail.test_failures:
+            block.append(f"  ...and {len(grouped) - detail.test_failures} more distinct failure(s)")
         blocks.append("\n".join(block))
 
     if not blocks:
@@ -158,11 +219,12 @@ def build_failure_evidence(
     qa_report: dict[str, Any] | None,
     static_report: dict[str, Any] | None,
     verification_report: dict[str, Any] | None,
+    detail: EvidenceDetail = EVIDENCE_LEVELS[0],
 ) -> str:
     """Assemble the grounded failure evidence for a fix pass, most objective first."""
     sections = [
-        _render_static_report(static_report or {}),
-        _render_verification_report(verification_report or {}),
+        _render_static_report(static_report or {}, detail),
+        _render_verification_report(verification_report or {}, detail),
         _render_qa_report(qa_report or {}),
     ]
     return "\n\n".join(section for section in sections if section)
@@ -176,6 +238,7 @@ def get_developer_prompt(
     qa_report: dict[str, Any] | None = None,
     static_report: dict[str, Any] | None = None,
     verification_report: dict[str, Any] | None = None,
+    detail: EvidenceDetail = EVIDENCE_LEVELS[0],
 ) -> list:
     """Build the developer prompt.
 
@@ -192,7 +255,7 @@ def get_developer_prompt(
     section at all, which is what turns an empty set of failures back into a
     first-generation prompt.
     """
-    evidence = build_failure_evidence(qa_report, static_report, verification_report)
+    evidence = build_failure_evidence(qa_report, static_report, verification_report, detail)
     is_fix = bool(evidence)
 
     # The system message is identical on every attempt, and the fix-mode rules

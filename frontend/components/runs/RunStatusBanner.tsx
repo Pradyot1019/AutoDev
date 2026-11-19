@@ -72,7 +72,8 @@ function Building({
   stages: RunDetail["stages"];
   latestEvent: RunEvent | null;
 }) {
-  const currentIndex = stages.findIndex((stage) => stage.status === "IN_PROGRESS");
+  const liveId = liveStageId(stages, latestEvent);
+  const currentIndex = liveId ? stages.findIndex((stage) => stage.id === liveId) : -1;
   const current = currentIndex >= 0 ? stages[currentIndex] : null;
   const position = currentIndex >= 0 ? currentIndex + 1 : null;
 
@@ -101,7 +102,7 @@ function Building({
       </p>
 
       <StageTrack
-        currentStage={run.current_stage}
+        currentStage={liveId ?? run.current_stage}
         status={run.status}
         size="md"
         withLabels
@@ -111,6 +112,28 @@ function Building({
       <Activity event={latestEvent} />
     </Frame>
   );
+}
+
+/**
+ * The stage that is executing right now, from the freshest signal available.
+ *
+ * `run.current_stage` is written only when a run pauses or ends, so mid-run it
+ * still names the last review (a Developer retry showed as ARCH). The graph
+ * records a stage's status when the stage *returns*, so during a retry nothing
+ * is IN_PROGRESS either. The newest event, though, is stamped with the stage that
+ * emitted it, and is the only signal that moves while a stage works.
+ */
+function liveStageId(stages: RunDetail["stages"], latestEvent: RunEvent | null): string | null {
+  const running = stages.find((stage) => stage.status === "IN_PROGRESS");
+  if (running) return running.id;
+
+  if (latestEvent?.stage && stages.some((stage) => stage.id === latestEvent.stage)) {
+    return latestEvent.stage;
+  }
+
+  // Nothing has spoken yet: the stage after the last one that finished.
+  const lastDone = stages.map((stage) => stage.status).lastIndexOf("COMPLETED");
+  return lastDone >= 0 && lastDone < stages.length - 1 ? stages[lastDone + 1].id : null;
 }
 
 /**

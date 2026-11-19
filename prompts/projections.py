@@ -118,3 +118,30 @@ def architecture_services(architecture: dict[str, Any] | None) -> list[dict[str,
     time without any further reshaping.
     """
     return list((architecture or {}).get("services") or [])
+
+
+# What QA judges the code against: the behaviour that was promised, and the
+# endpoints and models it was promised through. Everything the developer needed
+# to *write* the code (structure, docker, env vars, notes) is left out: QA reads
+# the code itself. Measured on a live run, the full documents made the review's
+# fixed parts alone 8,578 tokens against an 8,000 per-minute window.
+QA_PRD_FIELDS = (
+    "product_name",
+    "features",
+    "data_entities",
+    "functional_requirements",
+    "possible_apis",
+    "constraints",
+)
+
+QA_ARCHITECTURE_FIELDS = ("architecture_style", "services", "databases")
+
+
+def prd_for_qa(prd: dict[str, Any] | None) -> dict[str, Any]:
+    """The PRD as the reviewer needs it: what the code must do."""
+    return _project(prd, QA_PRD_FIELDS)
+
+
+def architecture_for_qa(architecture: dict[str, Any] | None) -> dict[str, Any]:
+    """The architecture as the reviewer needs it: services, endpoints, data."""
+    return _project(architecture, QA_ARCHITECTURE_FIELDS)

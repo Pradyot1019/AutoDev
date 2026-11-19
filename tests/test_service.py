@@ -248,6 +248,50 @@ class TestFullRun:
         assert "does not compile" in record.error
         assert not record.zip_path
 
+    async def test_a_developer_pass_that_produced_nothing_is_retried(self, service: RunService, stub_llm):
+        """Live: gpt-oss-20b failed every output format once, and the run ended
+        there with two of its three attempts unspent."""
+        stub_llm.set(
+            DeveloperSchema,
+            RuntimeError("Error code: 400 - {'error': {'message': 'Failed to generate JSON.'}}"),
+            fakes.build_developer_output(),
+        )
+
+        record = await run_to_completion(service)
+
+        assert record.status is RunStatus.COMPLETED
+        assert record.error == ""
+        assert record.retry_count == 2
+        assert stub_llm.calls_for(DeveloperSchema) == 2
+
+    async def test_a_rejected_key_is_not_retried(self, service: RunService, stub_llm):
+        """No attempt can clear an ABORT, so it is not paid for twice."""
+        stub_llm.set(
+            DeveloperSchema,
+            RuntimeError("Error code: 401 - {'error': {'message': 'Invalid API Key'}}"),
+            fakes.build_developer_output(),
+        )
+
+        record = await run_to_completion(service)
+
+        assert record.status is RunStatus.FAILED
+        assert stub_llm.calls_for(DeveloperSchema) == 1
+
+    async def test_the_retry_stops_at_the_attempt_budget(
+        self, service: RunService, stub_llm, monkeypatch: pytest.MonkeyPatch
+    ):
+        from core.config import reset_settings_cache
+
+        monkeypatch.setenv("MAX_DEVELOPER_RETRIES", "2")
+        reset_settings_cache()
+        stub_llm.set(DeveloperSchema, RuntimeError("Error code: 400 - Parsing failed."))
+
+        record = await run_to_completion(service)
+
+        assert record.status is RunStatus.FAILED
+        assert stub_llm.calls_for(DeveloperSchema) == 2
+        assert "No service could be generated" in record.error
+
     async def test_runs_are_listed_and_counted(self, service: RunService):
         await service.create(REQUIREMENT)
         await service.create("Build a blog.")
@@ -446,6 +490,39 @@ class TestQaRetryThroughTheService:
         assert record.status is RunStatus.COMPLETED
         assert record.retry_count == 2
         assert stub_llm.calls_for(DeveloperSchema) == 2
+
+    async def test_verification_failing_on_the_last_attempt_is_a_failed_run(
+        self, service: RunService, stub_llm, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Live: no test ever ran on any attempt and the console said "Completed"."""
+        from core.config import reset_settings_cache
+
+        monkeypatch.setenv("MAX_DEVELOPER_RETRIES", "2")
+        reset_settings_cache()
+        stub_llm.set(QASchema, fakes.build_qa_report(critical_issues=1))
+
+        record = await run_to_completion(service)
+
+        assert record.status is RunStatus.FAILED
+        assert "Verification still failing after 2 attempt(s)" in record.error
+        assert "critical" in record.error
+        # The code compiles, so it is still offered for download.
+        assert record.zip_path
+
+    async def test_passing_on_the_last_attempt_still_completes(
+        self, service: RunService, stub_llm, monkeypatch: pytest.MonkeyPatch
+    ):
+        from core.config import reset_settings_cache
+
+        monkeypatch.setenv("MAX_DEVELOPER_RETRIES", "2")
+        reset_settings_cache()
+        stub_llm.set(QASchema, fakes.build_qa_report(critical_issues=1), fakes.build_qa_report())
+
+        record = await run_to_completion(service)
+
+        assert record.status is RunStatus.COMPLETED
+        assert record.error == ""
+        assert record.retry_count == 2
 
 
 async def _settle_log_pump() -> None:

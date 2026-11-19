@@ -22,6 +22,7 @@ provider cannot build are skipped at construction time rather than failing later
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -64,7 +65,9 @@ def as_messages(prompt: Any) -> list[BaseMessage]:
 
 
 def schema_instructions(schema: type[BaseModel]) -> str:
-    return INSTRUCTIONS.format(schema=json.dumps(schema.model_json_schema(), indent=2))
+    # Compact: indentation is whitespace the model does not need and every call
+    # pays for. Indented, QASchema alone cost 1,269 tokens of an 8,000 window.
+    return INSTRUCTIONS.format(schema=json.dumps(schema.model_json_schema(), separators=(",", ":")))
 
 
 REMINDER = "Respond now with the single JSON object, valid against the JSON Schema given at the start. Raw JSON only."
@@ -200,8 +203,19 @@ REJECTIONS_BEFORE_SKIP = 2
 _rejections: dict[tuple[str, str, str], int] = {}
 
 
+# Groq reports a *generation* that failed its own JSON or tool-schema check as an
+# HTTP 400 too ("Failed to generate JSON", json_validate_failed, "parameters for
+# tool ... did not match schema"). Those are about one output -- in a live run the
+# reasoning model had simply run out of tokens -- so they must not retire a rung.
+_OUTPUT_FAILURE = re.compile(
+    r"json_validate_failed|failed to (?:generate|validate) json|did not match schema|"
+    r"failed to parse tool call arguments|parsing failed",
+    re.IGNORECASE,
+)
+
+
 def _is_rejection(exc: BaseException) -> bool:
-    return status_code(exc) == 400
+    return status_code(exc) == 400 and not _OUTPUT_FAILURE.search(str(exc))
 
 
 def skipped_rungs(provider: str, model: str) -> set[str]:

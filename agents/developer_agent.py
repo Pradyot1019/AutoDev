@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Callable
 from typing import Any
 
 from agents import attribution
@@ -12,12 +13,21 @@ from core.logging import bind, get_logger
 from core.paths import RunWorkspace, UnsafePathError, slugify
 from llm import registry
 from llm.budget import estimate_tokens
+from llm.content import flatten_content
+from llm.errors import Disposition, classify
 from llm.routing import RouteSignal
-from prompts.developer_json_prompt import build_failure_evidence, get_developer_prompt
+from llm.structured import schema_instructions
+from prompts.developer_json_prompt import (
+    EVIDENCE_LEVELS,
+    EvidenceDetail,
+    build_failure_evidence,
+    get_developer_prompt,
+)
 from prompts.developer_pdf_prompt import get_developer_doc_prompt
 from prompts.projections import architecture_services
 from schema.developer_schema import DeveloperSchema
 from state.state import AgentStatus, MultiAgent, Stage
+from utils.content_repair import repair_escaped_newlines
 from utils.json_utils import load_json, save_json
 from utils.status_tracker import log_status, mark
 
@@ -52,6 +62,9 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
     generated: list[str] = []
     preserved: list[str] = []
     failed: list[str] = []
+    # Whether any service failed for a reason no retry can clear (a rejected key,
+    # a daily quota): the same ABORT the retry logic already acts on.
+    unrecoverable: list[bool] = [False]
     # Carried forward rather than recomputed: a service that was upgraded stays
     # upgraded for the rest of the run, and the count is what stops it climbing
     # again past the configured cap.
@@ -161,14 +174,21 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
                 # Each call is metered by the shared budget, so the pacing that
                 # makes one call fit also spaces the calls apart.
                 response = await model.ainvoke(
-                    get_developer_prompt(
-                        state["user_requirements"],
-                        state.get("prd") or {},
-                        state.get("architecture") or {},
-                        service=service,
-                        qa_report=qa_for,
-                        static_report=static_for,
-                        verification_report=verification_for,
+                    _prompt_within_budget(
+                        slug,
+                        lambda detail, service=service, qa=qa_for, static=static_for, tests=verification_for: (
+                            get_developer_prompt(
+                                state["user_requirements"],
+                                state.get("prd") or {},
+                                state.get("architecture") or {},
+                                service=service,
+                                qa_report=qa,
+                                static_report=static,
+                                verification_report=tests,
+                                detail=detail,
+                            )
+                        ),
+                        demand=_output_demand(contract, slug),
                     )
                 )
             except Exception as exc:
@@ -176,6 +196,8 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
                 # that lands is one the retry does not have to pay for again.
                 logger.error("Service %s failed to generate: %s", slug, exc)
                 failed.append(slug)
+                if classify(exc) is Disposition.ABORT:
+                    unrecoverable[0] = True
                 continue
 
             output = _claim_single_service(response.model_dump(mode="json"), service, slug, slugs)
@@ -230,6 +252,9 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
         return {
             "code_manifest": manifest,
             "retry_count": attempt,
+            # A pass that lands clears an earlier pass's "produced no code" error;
+            # left in place it would mark a run that went on to pass as failed.
+            "error": "",
             # Stale evidence must be cleared so the routers judge only the fresh code.
             "static_report": {},
             "verification_report": {},
@@ -249,6 +274,10 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
         update.setdefault("code_manifest", manifest)
         update["generated_services"] = generated
         update["failed_services"] = failed
+        # A pass that produced nothing is worth another attempt when the cause
+        # was the model's answer, not the account. A live run on gpt-oss-20b
+        # failed every output format once and ended there with two attempts left.
+        update["developer_can_retry"] = bool(failed) and not generated and not unrecoverable[0]
         # Recorded on both paths for the same reason `retry_count` is: an upgrade
         # that has been spent must not be forgotten because the pass it happened
         # in went on to fail, or the next pass would buy it again. The same holds
@@ -256,6 +285,51 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
         update["service_escalations"] = escalations
         update["service_attempts"] = attempts
         return update
+
+
+def _call_tokens(prompt: list, demand: int | None) -> int:
+    """What this call reserves against the per-minute window, as the meter charges it.
+
+    The prompt, the schema the lower structured-output rungs add (counted always,
+    because any rung may be the one that runs), and the output allowance.
+    """
+    settings = get_settings()
+    text = "\n".join(flatten_content(getattr(message, "content", message)) for message in prompt)
+    reserve = max(0, settings.llm_output_reserve, settings.max_output_for(Purpose.HEAVY, demand))
+    return estimate_tokens(text) + estimate_tokens(schema_instructions(DeveloperSchema)) + reserve
+
+
+def _prompt_within_budget(
+    slug: str, build: Callable[[EvidenceDetail], list], *, demand: int | None
+) -> list:
+    """The most detailed prompt whose call fits the per-minute budget.
+
+    A call larger than the whole window is refused outright. In a live run the
+    last fix pass needed 8,006 tokens against 8,000 and the run ended without it.
+    Only the failure evidence is reduced, never the requirement or architecture;
+    a first-generation prompt has no evidence and is the same at every level. If
+    even the leanest level is too large, it is sent and the budget explains why.
+    """
+    limit = get_settings().llm_tokens_per_minute
+    prompt = build(EVIDENCE_LEVELS[0])
+    if limit <= 0:
+        return prompt
+
+    for level, detail in enumerate(EVIDENCE_LEVELS):
+        if level:
+            prompt = build(detail)
+        if _call_tokens(prompt, demand) <= limit:
+            if level:
+                logger.info(
+                    "Condensed the failure evidence for %s (level %d of %d) so the call fits the "
+                    "%d-token per-minute budget",
+                    slug,
+                    level,
+                    len(EVIDENCE_LEVELS) - 1,
+                    limit,
+                )
+            return prompt
+    return prompt
 
 
 def _targets(
@@ -680,7 +754,9 @@ def _write_code(
             if not file_path:
                 continue
             try:
-                workspace.write_source_file(service_name, file_path, file.get("code") or "")
+                workspace.write_source_file(
+                    service_name, file_path, repair_escaped_newlines(file_path, file.get("code") or "")
+                )
             except UnsafePathError as exc:
                 rejected += 1
                 logger.warning("Rejected generated file path: %s", exc)
@@ -699,7 +775,9 @@ def _write_code(
         if not file_path:
             continue
         try:
-            written = workspace.write_shared_source_file(file_path, dependency.get("code") or "")
+            written = workspace.write_shared_source_file(
+                file_path, repair_escaped_newlines(file_path, dependency.get("code") or "")
+            )
         except UnsafePathError as exc:
             rejected += 1
             logger.warning("Rejected dependency file path: %s", exc)
@@ -708,7 +786,7 @@ def _write_code(
 
     readme = output.get("readme_content") or ""
     if readme.strip():
-        workspace.write_shared_source_file("README.md", readme)
+        workspace.write_shared_source_file("README.md", repair_escaped_newlines("README.md", readme))
 
     if rejected:
         logger.warning("Discarded %d generated path(s) that tried to escape the workspace", rejected)

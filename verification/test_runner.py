@@ -57,6 +57,7 @@ part of the delivered project.
 import importlib
 import os
 import sys
+import traceback
 from pathlib import Path
 
 import pytest
@@ -76,19 +77,55 @@ os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 _APP_MODULES = ("app.main", "main", "app", "src.main", "api.main", "server.main")
 
 
+def _project_location(exc):
+    # The last frame inside the service, so the failure names the file to fix
+    # rather than this conftest, which is only where the import was attempted.
+    found = ""
+    for frame in traceback.extract_tb(exc.__traceback__):
+        try:
+            rel = Path(frame.filename).resolve().relative_to(SERVICE_ROOT)
+        except (ValueError, OSError):
+            continue
+        if ".venv" in rel.parts or "site-packages" in rel.parts:
+            continue
+        found = "{{0}}:{{1}}".format(rel.as_posix(), frame.lineno)
+    if isinstance(exc, SyntaxError) and exc.filename:
+        try:
+            rel = Path(exc.filename).resolve().relative_to(SERVICE_ROOT)
+            found = "{{0}}:{{1}}".format(rel.as_posix(), exc.lineno or 0)
+        except (ValueError, OSError):
+            pass
+    return found
+
+
 def _load_app():
     attempts = []
+    absent = []
     for name in _APP_MODULES:
         try:
             module = importlib.import_module(name)
+        except ModuleNotFoundError as exc:
+            if exc.name and (name == exc.name or name.startswith(exc.name + ".")):
+                absent.append(name)  # the candidate simply does not exist
+                continue
+            attempts.append(_describe(name, exc))
+            continue
         except Exception as exc:  # noqa: BLE001
-            attempts.append("{{0}}: {{1}}: {{2}}".format(name, type(exc).__name__, exc))
+            attempts.append(_describe(name, exc))
             continue
         instance = getattr(module, "app", None)
         if instance is not None:
             return instance, attempts
         attempts.append("{{0}}: imported but defines no 'app'".format(name))
+    if absent:
+        attempts.append("not present: " + ", ".join(absent))
     return None, attempts
+
+
+def _describe(name, exc):
+    where = _project_location(exc)
+    text = "{{0}}: {{1}}: {{2}}".format(name, type(exc).__name__, str(exc).splitlines()[0] if str(exc) else "")
+    return text + (" (at {{0}})".format(where) if where else "")
 
 
 @pytest.fixture(scope="session")
@@ -108,6 +145,29 @@ def client(app):
 
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture(autouse=True)
+def _module_level_client(request):
+    # Generated tests often use `client` as a module global instead of asking
+    # for the fixture. Supply it only to modules that use it and never define it,
+    # so tests of pure functions do not import the app.
+    module = request.module
+    if "client" in request.fixturenames or hasattr(module, "client"):
+        yield
+        return
+    try:
+        uses_client = "client." in Path(module.__file__).read_text(encoding="utf-8")
+    except OSError:
+        uses_client = False
+    if not uses_client:
+        yield
+        return
+    module.client = request.getfixturevalue("client")
+    try:
+        yield
+    finally:
+        del module.client
 '''
 
 
@@ -163,6 +223,7 @@ def _run_service(
     if not source_dir.is_dir():
         result.error = f"No generated source directory for {slug}."
         return result
+    _scaffold_import_test(source_dir, tests_dir)
     if not _has_tests(tests_dir):
         result.error = ""
         result.output = f"No test files were generated for {slug}."
@@ -317,6 +378,41 @@ def _scaffold_conftest(tests_dir: Path) -> Path | None:
     conftest.parent.mkdir(parents=True, exist_ok=True)
     conftest.write_text(_CONFTEST.format(marker=CONFTEST_MARKER), encoding="utf-8")
     return conftest
+
+
+IMPORT_TEST_NAME = "test_agentforge_app_imports.py"
+
+# Entry points that mean "this service is an application", mirroring the
+# conftest's _APP_MODULES minus the bare `app` package, which almost every
+# project has whether or not it is a web service.
+_ENTRY_POINTS = ("app/main.py", "main.py", "src/main.py", "api/main.py", "server/main.py")
+
+_IMPORT_TEST = '''\
+"""{marker} — the application must import, whatever else is tested.
+
+Live: QA's two tests checked only the Pydantic schemas, both passed, and the app
+itself crashed on import. Written by the pipeline, not part of the project.
+"""
+
+
+def test_the_application_imports(app):
+    assert app is not None
+'''
+
+
+def _scaffold_import_test(source_dir: Path, tests_dir: Path) -> Path | None:
+    """Require the service's application to import, if it has an entry point.
+
+    Uses the conftest's ``app`` fixture, whose failure lists each module tried and
+    the file and line inside the project where the import broke. A service with
+    no entry point (a library, a worker) gets nothing.
+    """
+    if not any((source_dir / entry).is_file() for entry in _ENTRY_POINTS):
+        return None
+    test = tests_dir / IMPORT_TEST_NAME
+    test.parent.mkdir(parents=True, exist_ok=True)
+    test.write_text(_IMPORT_TEST.format(marker=CONFTEST_MARKER), encoding="utf-8")
+    return test
 
 
 def _requirements_for(workspace: RunWorkspace, source_dir: Path) -> Path | None:

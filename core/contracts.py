@@ -93,6 +93,22 @@ def _is_test_path(path: str) -> bool:
     return name in _TEST_FILES or (name.startswith("test_") and name.endswith(".py")) or name.endswith("_test.py")
 
 
+# Files with no extension that an architect may still list as a "folder".
+_EXTENSIONLESS_FILES = frozenset({"dockerfile", "makefile", "procfile", "license", "readme", "gemfile", "jenkinsfile"})
+
+
+def _looks_like_file(path: str) -> bool:
+    """A "folder" entry that names a file: no generated tree can ever satisfy it.
+
+    A live architecture listed app/main.py, Dockerfile, requirements.txt and
+    alembic.ini under folders; the gate then demanded a *directory* called
+    app/main.py, and nine of twelve failures in that attempt were unsatisfiable.
+    The real file requirements live in key_files, so dropping these loses nothing.
+    """
+    name = PurePosixPath(path).name.lower()
+    return bool(PurePosixPath(name).suffix) or name in _EXTENSIONLESS_FILES or name.startswith(".")
+
+
 def _developer_owns(path: str) -> bool:
     """Whether a path the architecture names is the developer's to produce."""
     return not _is_deployment_file(path) and not _is_test_path(path)
@@ -177,7 +193,11 @@ def derive_contract(architecture: dict[str, Any] | None) -> ArchitectureContract
 
         structure = structures.get(slug, {})
         key_files = [path for path in _clean_paths(structure.get("key_files")) if _developer_owns(path)]
-        folders = [path for path in _clean_paths(structure.get("folders")) if not _is_test_path(path)]
+        folders = [
+            path
+            for path in _clean_paths(structure.get("folders"))
+            if not _is_test_path(path) and not _looks_like_file(path)
+        ]
 
         contracts.append(
             ServiceContract(
@@ -339,14 +359,18 @@ def _violations_for(
 ) -> list[str]:
     violations: list[str] = []
 
-    # A dangling dependency is a defect in the architecture rather than in the
-    # code, but it is deterministic and the developer is the one who has to
-    # reconcile it, so it is reported alongside the rest.
+    # A dangling dependency is a defect in the architecture, not in the code, and
+    # no code the developer writes can repair it. It used to fail the gate: a live
+    # architecture named its own modules (habit-repository, checkin-repository)
+    # as service dependencies, and two of three developer attempts were sent back
+    # for it after the code itself compiled. It is logged for the review instead.
     for dependency in service.depends_on:
         if dependency not in contract.slugs:
-            violations.append(
-                f"{service.slug}: the architecture says this service depends on "
-                f"{dependency!r}, which it does not declare as a service"
+            logger.warning(
+                "%s: the architecture says this service depends on %r, which it does not "
+                "declare as a service (an architecture issue; not sent to the developer)",
+                service.slug,
+                dependency,
             )
 
     source = workspace.service_source(service.slug)

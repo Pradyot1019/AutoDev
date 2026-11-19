@@ -447,7 +447,104 @@ class TestConftestScaffold:
         report = run_tests(workspace, runner=runner)
 
         assert report.passed, report.services[0].output
-        assert report.total_passed == 1
+        # The health test, plus the pipeline's own "the app imports" test.
+        assert report.total_passed == 2
+
+    def test_client_used_as_a_module_global_is_supplied(
+        self, workspace: RunWorkspace, runner: LocalSubprocessRunner
+    ):
+        """Live: every generated test failed with NameError: name 'client' is not defined."""
+        pytest.importorskip("fastapi")
+
+        workspace.write_source_file(fakes.SERVICE_NAME, "app/__init__.py", "")
+        workspace.write_source_file(
+            fakes.SERVICE_NAME,
+            "app/main.py",
+            'from fastapi import FastAPI\n\napp = FastAPI()\n\n\n@app.get("/health")\ndef health():\n    return {}\n',
+        )
+        workspace.write_test_file(
+            fakes.SERVICE_NAME,
+            "test_health.py",
+            'def test_health():\n    assert client.get("/health").status_code == 200\n',
+        )
+
+        report = run_tests(workspace, runner=runner)
+
+        assert report.passed, report.services[0].output
+
+    def test_an_app_that_fails_to_import_names_the_file_to_fix(
+        self, workspace: RunWorkspace, runner: LocalSubprocessRunner
+    ):
+        """Live: the error pointed at conftest.py:48, and the developer never found config.py."""
+        pytest.importorskip("fastapi")
+
+        workspace.write_source_file(fakes.SERVICE_NAME, "app/__init__.py", "")
+        workspace.write_source_file(
+            fakes.SERVICE_NAME, "app/config.py", "import os\n\nraise ImportError('BaseSettings has moved')\n"
+        )
+        workspace.write_source_file(
+            fakes.SERVICE_NAME, "app/main.py", "from fastapi import FastAPI\n\nfrom app import config\n\napp = FastAPI()\n"
+        )
+        workspace.write_test_file(
+            fakes.SERVICE_NAME, "test_health.py", "def test_health(client):\n    assert client is not None\n"
+        )
+
+        report = run_tests(workspace, runner=runner)
+        output = report.services[0].output
+
+        assert not report.passed
+        assert "app.main: ImportError: BaseSettings has moved (at app/config.py:3)" in output
+        # Candidates that simply do not exist are summarised, not listed as errors.
+        assert "ModuleNotFoundError: No module named 'src'" not in output
+        assert "not present:" in output
+
+    def test_an_app_that_does_not_import_fails_even_when_qa_tests_pass(
+        self, workspace: RunWorkspace, runner: LocalSubprocessRunner
+    ):
+        """Live: two schema-only tests passed while the app crashed on import."""
+        pytest.importorskip("fastapi")
+
+        workspace.write_source_file(fakes.SERVICE_NAME, "app/__init__.py", "")
+        workspace.write_source_file(fakes.SERVICE_NAME, "app/schemas.py", "X = 1\n")
+        workspace.write_source_file(
+            fakes.SERVICE_NAME, "app/main.py", "from fastapi import FastAPI\nimport missing_package\n\napp = FastAPI()\n"
+        )
+        workspace.write_test_file(
+            fakes.SERVICE_NAME, "test_schema.py", "from app.schemas import X\n\n\ndef test_x():\n    assert X == 1\n"
+        )
+
+        report = run_tests(workspace, runner=runner)
+        service = report.services[0]
+
+        assert not report.passed
+        assert service.passed == 1
+        assert any("test_the_application_imports" in failure.test for failure in service.failures)
+        assert "missing_package" in service.output
+
+    def test_an_importable_app_adds_one_passing_test(
+        self, workspace: RunWorkspace, runner: LocalSubprocessRunner
+    ):
+        pytest.importorskip("fastapi")
+
+        workspace.write_source_file(fakes.SERVICE_NAME, "app/__init__.py", "")
+        workspace.write_source_file(fakes.SERVICE_NAME, "app/main.py", "from fastapi import FastAPI\n\napp = FastAPI()\n")
+        workspace.write_test_file(fakes.SERVICE_NAME, "test_math.py", "def test_add():\n    assert 1 + 1 == 2\n")
+
+        report = run_tests(workspace, runner=runner)
+
+        assert report.passed, report.services[0].output
+        assert report.total_passed == 2
+
+    def test_a_pure_function_test_does_not_load_the_app(
+        self, workspace: RunWorkspace, runner: LocalSubprocessRunner
+    ):
+        """No app exists here; a test that never mentions client must still pass."""
+        workspace.write_source_file(fakes.SERVICE_NAME, "app/__init__.py", "")
+        workspace.write_test_file(fakes.SERVICE_NAME, "test_math.py", "def test_add():\n    assert 1 + 1 == 2\n")
+
+        report = run_tests(workspace, runner=runner)
+
+        assert report.passed, report.services[0].output
 
     def test_a_missing_app_fails_the_run_rather_than_skipping(
         self, workspace: RunWorkspace, runner: LocalSubprocessRunner

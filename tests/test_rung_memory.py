@@ -73,6 +73,44 @@ class TestTheRules:
     def setup_method(self):
         reset_rung_memory()
 
+    @pytest.mark.parametrize(
+        "message",
+        [
+            # Real Groq bodies from a live run: bad output, not an unsupported rung.
+            "Error code: 400 - {'error': {'message': \"Failed to validate JSON. Please adjust your prompt.\", "
+            "'type': 'invalid_request_error', 'code': 'json_validate_failed', 'failed_generation': ''}}",
+            "Error code: 400 - {'error': {'message': \"Failed to generate JSON. Please adjust your prompt.\", "
+            "'type': 'invalid_request_error', 'code': 'json_validate_failed'}}",
+            "Error code: 400 - {'error': {'message': \"Tool call validation failed: parameters for tool "
+            "ManagerSchema did not match schema: errors: [missing properties: 'data_entities']\", "
+            "'code': 'tool_use_failed'}}",
+            "Error code: 400 - {'error': {'message': 'Failed to parse tool call arguments as JSON', "
+            "'type': 'invalid_request_error', 'code': 'tool_use_failed'}}",
+            "Error code: 400 - {'error': {'message': \"Parsing failed. The model generated output that could "
+            "not be parsed. Please adjust your prompt.\", 'type': 'invalid_request_error'}}",
+        ],
+    )
+    def test_a_400_about_one_bad_output_never_counts(self, message: str):
+        failing = RunnableLambda(lambda p: (_ for _ in ()).throw(RuntimeError(message)))
+        for _ in range(REJECTIONS_BEFORE_SKIP + 1):
+            with pytest.raises(RuntimeError):
+                remembering("groq", "openai/gpt-oss-20b", "json_schema", failing).invoke("x")
+
+        assert skipped_rungs("groq", "openai/gpt-oss-20b") == set()
+
+    def test_a_model_that_will_not_call_the_tool_still_counts(self):
+        """'did not call a tool' is the rung being unusable, not one output."""
+        message = (
+            "Error code: 400 - {'error': {'message': 'Tool choice is required, but model did not call a tool', "
+            "'code': 'tool_use_failed'}}"
+        )
+        failing = RunnableLambda(lambda p: (_ for _ in ()).throw(RuntimeError(message)))
+        for _ in range(REJECTIONS_BEFORE_SKIP):
+            with pytest.raises(RuntimeError):
+                remembering("groq", "llama", "native", failing).invoke("x")
+
+        assert skipped_rungs("groq", "llama") == {"native"}
+
     def test_a_success_clears_the_count(self):
         outcomes = [RuntimeError(UNSATISFIABLE), "ok", RuntimeError(UNSATISFIABLE)]
 

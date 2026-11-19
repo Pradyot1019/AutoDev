@@ -495,6 +495,15 @@ class TestOutputTokenCeiling:
         model = registry._build(LLMProvider.GOOGLE, "gemini-3.5-flash", settings)
         assert model.thinking_budget == 0
 
+    def test_groq_reasoning_effort_reaches_the_client_only_when_set(self):
+        """gpt-oss spends its reasoning out of the output ceiling, as Gemini does."""
+        default = registry._build(LLMProvider.GROQ, "openai/gpt-oss-20b", Settings(groq_api_key="k"))
+        low = registry._build(
+            LLMProvider.GROQ, "openai/gpt-oss-20b", Settings(groq_api_key="k", groq_reasoning_effort="low")
+        )
+        assert default.reasoning_effort is None
+        assert low.reasoning_effort == "low"
+
     def test_google_thinking_level_is_sent_instead_of_the_budget(self):
         """gemini-3.5-flash-lite rejects a budget of 0 but accepts a level."""
         settings = Settings(google_api_key="test-key", google_thinking_budget=0, google_thinking_level="minimal")

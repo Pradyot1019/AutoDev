@@ -353,7 +353,10 @@ class RunService:
         fields["error"] = error
         fields["status"] = RunStatus.FAILED if (error or failed) else RunStatus.COMPLETED
 
-        if not error:
+        # Code that compiles is still worth downloading when its tests failed; code
+        # that does not parse, or a run that never produced any, is not.
+        compiles = bool((values.get("static_report") or {}).get("passed"))
+        if not error or compiles:
             archive = await asyncio.to_thread(
                 zip_workspace, RunWorkspace.for_run(run_id), fields.get("name") or run_id
             )

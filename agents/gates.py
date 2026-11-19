@@ -92,10 +92,26 @@ async def test_runner_node(state: MultiAgent) -> dict[str, Any]:
                 logger.warning("  FAILED %s", failure.test)
 
         verification_report = report.model_dump(mode="json")
-        return {
+        update: dict[str, Any] = {
             "verification_report": verification_report,
             "service_failures": _attribute(state, verification_report=verification_report),
         }
+
+        if _out_of_retries(state):
+            # Without this the graph ended "with the current result" and the run was
+            # recorded as Completed although no test had ever run. Same verdict the
+            # router and the benchmark use (Eq. 1), so all three agree.
+            from graph.build_graph import _needs_rework  # the graph imports this module
+
+            reason = _needs_rework({**state, "verification_report": verification_report})
+            if reason:
+                first = _first_problem(verification_report)
+                update["error"] = (
+                    f"Verification still failing after {state.get('retry_count', 0)} attempt(s): "
+                    f"{reason}" + (f" ({first})" if first else "")
+                )
+
+        return update
 
     with bind(run_id=state.get("run_id"), stage=stage.value):
         return await run_stage(state, stage, body)
@@ -138,6 +154,16 @@ def _attribute(state: MultiAgent, **fresh: dict[str, Any]) -> dict[str, list[str
         logger.info("Attribution: %d failure(s) for %s", len(failures), label)
 
     return mapping
+
+
+def _first_problem(verification_report: dict[str, Any]) -> str:
+    """The first concrete thing a person should look at: a blocked service or a failing test."""
+    for service in verification_report.get("services") or []:
+        if service.get("error"):
+            return f"{service.get('service', '?')}: {str(service['error'])[:200]}"
+        for failure in service.get("failures") or []:
+            return f"FAILED {failure.get('test', '?')}"
+    return ""
 
 
 def _out_of_retries(state: MultiAgent) -> bool:
