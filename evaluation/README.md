@@ -239,8 +239,8 @@ Notable cases:
 - **v1 M3 r3** passed its own tests, but its app never creates its tables; the
   QA-written tests created them. The test runner's app-import check does not
   catch this: the app imports fine.
-- **v2 M4 r1** passed its own tests, then failed all 6 acceptance tests with
-  401. The PM agent had added an `X-API-Key` requirement the user never asked
+- **v2 M4 r1** passed its own tests, then failed all 6 acceptance tests with a
+  401 response. The PM agent had added an `X-API-Key` requirement the user never asked
   for. This is drift the PM review gate exists to catch; the benchmark
   auto-approves it.
 - **Baseline M1 r1** crashed on import (`None | None` in a schema annotation).
@@ -308,9 +308,10 @@ All at peak rates; actual billing is lower for calls made off-peak.
 
 1. **Configure.** Set the provider and model in `.env`, and check
    `llm/pricing.py` has the model's rates; otherwise cost is reported as `–`.
-2. **Pilot.** Run a 3-run pilot first:
-   ```bash
-   .venv/Scripts/python.exe evaluation/run_e2e_benchmark.py --label <model>-pilot --only E1-todo M2-library H1-shop --repeats 1
-   ```
+2. **Pilot.** Run a 3-run pilot first (command below).
 3. **Full run.** Then run the full benchmark, the baseline, acceptance and the
    analyser with a new label. Results never overwrite another label's.
+
+```bash
+.venv/Scripts/python.exe evaluation/run_e2e_benchmark.py --label <model>-pilot --only E1-todo M2-library H1-shop --repeats 1
+```
