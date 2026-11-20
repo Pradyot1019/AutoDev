@@ -116,11 +116,16 @@ provider-agnostic LLM layer adds a rolling token budget that learns the
 provider's true per-minute limit, a retry/degrade/abort error classifier, a
 four-rung structured-output ladder and difficulty-based model routing. On 141
 injected faults, verification detected 88.7\%, with the static gate catching
-every build fault about $25\times$ faster than test execution; attribution
+every build fault about $16\times$ faster than test execution; attribution
 reached 100\% precision and recall and cut Developer calls by 64.4\%; and
 under a simulated 8{,}000 TPM provider the self-correcting budget reduced
-rate-limit rejections from 48 to 1. End-to-end results with live models are
-reported in Section~VI.
+rate-limit rejections from 48 to 1. In 30 end-to-end runs with DeepSeek V4.1
+Flash, revised prompts raised verified runs from 23.3\% to 40.0\% at US\$0.15 per
+run, and without test execution 5 of the 17 runs accepted on reviewer scores
+would have shipped failing code. On held-out acceptance tests a single-prompt
+baseline with the same model remained stronger on small projects (20 of 21
+against 15 of 21), a gap we trace to inter-file inconsistency and over-strict
+generated tests.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -496,7 +501,7 @@ allows a container backend to replace the local subprocess runner.
 %% =============================================== IV. NOVELTY & CONTRIBUTIONS
 \section{Novelty and Contributions}
 
-Compared with the baselines in Section~II, AutoDev makes six distinct
+Compared with the baselines in Section~II, AutoDev makes seven distinct
 contributions.
 
 \textbf{N1. Contract-first, fail-closed orchestration with persistent human
@@ -555,6 +560,17 @@ structured-output parser discards the raw message, and priced only from publishe
 rates. Cost per verified project is thus measured rather than estimated, and the
 same per-service independence that enables attribution lets a project's services
 be generated concurrently under the shared budget.
+
+\textbf{N7. An evaluation protocol that does not trust the system's own tests.}
+Project-level generators are usually scored by the tests they generate, which
+can be as wrong as the code. AutoDev is additionally scored against held-out
+acceptance tests written from the requirement text before any generation and
+shared unchanged with the baseline, and every attempt's static verdict, review
+scores, test results and regenerated services are logged, so each mechanism's
+contribution can be estimated counterfactually from one benchmark rather than
+one benchmark per ablation. This protocol is what exposed, in Section~VI, both
+the false accepts a score-only verdict would make and the false rejections that
+AutoDev's own over-strict tests cause.
 
 %% =================================================== V. IMPLEMENTATION
 \section{Implementation Details}
@@ -635,10 +651,10 @@ the PRD and architecture, verification results, the file tree and the live log.
 
 \subsection{Evaluation Design and Research Questions}
 We evaluate AutoDev at two levels. \emph{Component-level} experiments exercise
-the real code of each mechanism with controlled inputs and are complete.
-\emph{System-level} experiments run the full pipeline with live models and are in
-progress; their tables below contain placeholders (\tbd[red]) to be filled. The
-study answers five research questions:
+the real code of each mechanism with controlled inputs. \emph{System-level}
+experiments run the full pipeline with a live model on ten requirements and
+compare it with a single-prompt baseline. The study answers five research
+questions:
 \begin{itemize}
 \item \textbf{RQ1} Does cost-ordered verification detect faults in generated code?
 \item \textbf{RQ2} Is failure attribution accurate, and how much does surgical
@@ -659,14 +675,19 @@ reproduced by \texttt{evaluation/\allowbreak component/\allowbreak run\_componen
 (RQ1, RQ2) and \texttt{evaluation/\allowbreak component/\allowbreak run\_robustness\_eval.py} (RQ3).
 
 \subsection{Metrics}
+\label{sec:metrics}
 Table~\ref{tab:metrics} defines the metrics. Because the output is executable
-code, functional metrics (pass rates, pass@$k$) are primary; text-overlap metrics
-such as BLEU are not used, since they correlate poorly with correctness for
-code~\cite{chen2021codex}. For a problem with $n$ samples of which $c$ pass,
-\begin{equation}
-\text{pass@}k=\mathbb{E}\Bigl[1-\binom{n-c}{k}\Big/\binom{n}{k}\Bigr].
-\label{eq:passk}
-\end{equation}
+code, functional metrics are primary; text-overlap metrics such as BLEU are not
+used, since they correlate poorly with correctness for code~\cite{chen2021codex}.
+Because a system's own tests can be lenient with its own code, the comparison in
+RQ5 also uses \emph{held-out acceptance tests}: for each easy and medium
+requirement, a suite written from the requirement text alone, before any project
+was generated, run unchanged against every system's output
+(\texttt{evaluation/\allowbreak run\_acceptance.py}). The suites check only what
+a requirement states (paths, status codes, rules, named fields) and accept any
+response shape it leaves open. Function-level benchmarks such as HumanEval and
+MBPP, scored by pass@$k$, are not used, because AutoDev's unit of output is a
+multi-file project rather than a function.
 
 \begin{table}[t]
 \caption{Evaluation Metrics}
@@ -684,10 +705,10 @@ First-attempt success & runs passing with $a=1$ / runs \\
 Static / test pass rate & services passing the gate; tests passing \\
 QA score & mean of $\min_i s_i$ over successful runs (0--10) \\
 Dev.\ attempts & mean $a$ per run \\
-Cost & LLM calls and tokens per run \\
+Cost & LLM calls, provider-reported tokens and US\$ per run \\
 Latency & wall-clock time per run, excluding human wait \\
 HTTP 429s & rate-limit rejections per run \\
-pass@1 & Eq.~(\ref{eq:passk}) on HumanEval / MBPP \\
+Acceptance pass & held-out tests passed; projects passing all of them \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -715,10 +736,11 @@ and both combined, per mutation operator ($n$ = mutants).}
 \label{fig:faults}
 \end{figure}
 
-The ordering of checks pays off: the static gate took a median of 28\,ms per
-service against 0.68\,s for the test run, about $25\times$ cheaper, and 60\% of
+The ordering of checks pays off: the static gate took a median of 128\,ms per
+service against 2.02\,s for the test run, about $16\times$ cheaper, and 60\% of
 detected faults (75 of 125) were stopped there, before any QA model call would
-have been made. Timings are from a Linux container and will differ by machine.
+have been made. Timings are from a Windows~11 laptop, where the gate's
+application-import check runs in a subprocess, and will differ by machine.
 
 \subsection{RQ2: Attribution and Surgical Regeneration}
 In 40 trials, one to three of the four services were mutated simultaneously and
@@ -777,7 +799,7 @@ Table~\ref{tab:component} summarises the component-level results.
 Metric & Result \\
 \midrule
 Faults detected (all / build / logic) & 88.7\% / 100\% / 75.8\% \\
-Static gate vs.\ test run (median)    & 28\,ms vs.\ 0.68\,s \\
+Static gate vs.\ test run (median)    & 128\,ms vs.\ 2.02\,s \\
 Detected faults stopped before QA     & 60\% \\
 Attribution precision / recall        & 100\% / 100\% \\
 Developer calls saved (surgical)      & 64.4\% \\
@@ -788,9 +810,9 @@ HTTP 429s, no budget vs.\ AutoDev     & 48 vs.\ 1 \\
 \end{tabular}
 \end{table}
 
-\textbf{Test suite and offline end-to-end run.} All 1{,}139 automated tests
-across 29 modules passed in 262.7\,s; Fig.~\ref{fig:tests} shows their
-distribution, with 463 in the LLM layer. In an offline end-to-end run of the
+\textbf{Test suite and offline end-to-end run.} All 1{,}267 automated tests
+across 35 modules pass; Fig.~\ref{fig:tests} shows their distribution, with 507
+in the LLM layer. In an offline end-to-end run of the
 requirement \emph{``Build an expense tracker with login, expense CRUD, and
 monthly reports''}, driven by the repository's fake LLM, the pipeline paused at
 both review gates, generated a three-file service, passed the static gate, ran
@@ -801,108 +823,187 @@ failed once the retry budget was spent.
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{fig6_test_distribution.png}
-\caption{Distribution of the 1{,}139 automated tests by subsystem.}
+\caption{Distribution of the 1{,}267 automated tests by subsystem.}
 \label{fig:tests}
 \end{figure}
 
 \subsection{RQ4: End-to-End Benchmark with Live Models}
 A benchmark harness (\texttt{evaluation/\allowbreak run\_e2e\_benchmark.py}) runs ten
-requirements in three difficulty tiers (\ph{3 easy, 4 medium, 3 hard}), three
-times each, through the same service the console uses, with both review gates
-auto-approved. Table~\ref{tab:e2e} reports the results per tier and model.
+requirements in three difficulty tiers (three easy single-service CRUD APIs, four
+medium APIs with authentication or business rules, and three hard multi-service
+systems), three times each, through the same service the console uses, with both
+review gates auto-approved. All runs use DeepSeek V4.1 Flash
+(\texttt{deepseek-flash}) for every role, with thinking enabled at low
+reasoning effort, temperature 0.2, $\tau=7$ and $A=3$. Token counts and cost are
+the provider-reported usage of every call, priced at DeepSeek's published peak
+rates (US\$0.30 / 1.20 per million input / output tokens). Two prompt versions
+were measured: v1 is the prompt set the system was developed with; v2
+asks the Architect for a fixed compact file layout and SQLite, tells the Developer
+to keep names consistent across files and to re-emit every importer of a renamed
+name, and limits QA tests to behaviour the requirement states.
+Table~\ref{tab:e2e} reports the results.
 
 \begin{table*}[t]
-\caption{End-to-End Benchmark with Live Models (10 requirements $\times$ 3 runs; mean over runs)}
+\caption{End-to-End Benchmark with DeepSeek V4.1 Flash (10 requirements $\times$ 3 runs per prompt version; mean over runs)}
 \label{tab:e2e}
 \centering
 \footnotesize
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{@{}llccccccccc@{}}
+\begin{tabular}{@{}llcccccccccc@{}}
 \toprule
-Model & Tier & RSR (\%) & 1st-attempt (\%) & Dev.\ attempts & Static pass (\%) & Test pass (\%) & QA score & LLM calls & Tokens (k) & Latency (min) \\
+Prompts & Tier & RSR (\%) & 1st-attempt (\%) & Dev.\ attempts & Static pass (\%) & Test pass (\%) & QA score & LLM calls & Tokens (k) & Cost (US\$) & Latency (min) \
 \midrule
-\multirow{4}{*}{Gemini 2.5 Flash}
- & Easy   & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
- & Medium & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
- & Hard   & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
- & \textbf{All} & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\multirow{4}{*}{v1}
+ & Easy   & 33.3 & 22.2 & 2.56 & 77.8 & 80.7 & 9.0 & 9.1 & 122.6 & 0.102 & 6.6 \
+ & Medium & 33.3 & 8.3  & 2.58 & 75.0 & 43.8 & 7.8 & 7.8 & 143.3 & 0.120 & 7.0 \
+ & Hard   & 0.0  & 0.0  & 3.00 & 48.1 & 54.5 & --  & 12.2 & 283.4 & 0.234 & 9.5 \
+ & \textbf{All} & 23.3 & 10.0 & 2.70 & 67.8 & 58.5 & 8.3 & 9.5 & 179.1 & 0.149 & 7.6 \
 \midrule
-\multirow{4}{*}{\ph{Llama (Groq)}}
- & Easy   & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
- & Medium & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
- & Hard   & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
- & \textbf{All} & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd & \tbd \\
+\multirow{4}{*}{v2}
+ & Easy   & 55.6 & 44.4 & 1.67 & 87.5 & 98.5 & 8.8 & 7.3 & 99.9 & 0.093 & 5.3 \
+ & Medium & 41.7 & 41.7 & 2.17 & 91.7 & 89.1 & 8.0 & 8.1 & 131.1 & 0.115 & 7.3 \
+ & Hard   & 22.2 & 11.1 & 2.78 & 81.5 & 75.0 & 7.0 & 13.3 & 283.4 & 0.238 & 10.2 \
+ & \textbf{All} & \textbf{40.0} & \textbf{33.3} & 2.20 & 87.4 & 89.2 & 8.2 & 9.4 & 167.4 & 0.147 & 7.6 \
 \bottomrule
 \end{tabular}}
+\vspace{2pt}
+\parbox{\textwidth}{\scriptsize QA score is the mean of $\min_i s_i$ over successful runs (no v1 hard run succeeded).
+Static pass is the share of services passing the gate on the last attempt; test pass the share of
+generated tests passing. One v2 easy run ended in the PM stage on a truncated reply and has no
+usage record, so its tier cost is the mean of the other eight. Latency excludes human wait.}
 \end{table*}
 
-\textit{Discussion placeholder.} \ph{Expected pattern to confirm or revise once
-numbers are in: run success should fall from the easy to the hard tier, with most
-hard-tier failures coming from cross-service integration tests rather than build
-errors, since the static gate removes build faults within one retry. Report which
-share of successful runs needed a second or third Developer attempt, and how many
-of those used tier escalation. Compare Gemini and the Groq-hosted Llama model on
-the rung of the structured-output ladder actually used and on the number of 429s
-per run.}
+With v1 prompts, 23.3\% of runs ended verified and no hard run did. The failures
+were dominated by code that did not import: 22 of the 30 runs had at least one
+attempt stopped by the static gate, and of the 72 held-out acceptance tests that
+v1 projects failed (RQ5), 45 failed because the application crashed on import
+(a module importing a name a sibling file never defined, or two files
+disagreeing on a model's name), against six wrong paths and one authentication
+error. These are consistency defects between files
+of one service rather than misread requirements, which motivated v2. With v2,
+run success rose to 40.0\% (55.6\% easy, 41.7\% medium, 22.2\% hard),
+first-attempt success more than tripled (10.0\% to 33.3\%), the static pass rate
+rose from 67.8\% to 87.4\% and the generated-test pass rate from 58.5\% to
+89.2\%, at the same cost (US\$0.147 per run, US\$4.27 for all 30). Hard-tier runs
+remain the weakest: their remaining failures are services that still do not
+import after three attempts (five of seven) and failing cross-service tests.
+No v1 run and one v2 run met an HTTP 429 from DeepSeek, so the token budget
+was idle on this provider; the structured-output ladder was not: DeepSeek
+rejects the \texttt{native} and \texttt{json\_schema} formats, the ladder settled
+on \texttt{json\_mode}, and rung memory skipped the rejected rungs for later calls
+(rejections were logged in 3 v1 and 6 v2 runs). No service was escalated a tier,
+since routing is disabled by default.
 
 \subsection{RQ5: Baseline Comparison and Ablation}
-\textbf{Baselines.} Table~\ref{tab:baselines} compares AutoDev with a
-single-prompt baseline using the same model, and with published multi-agent
-systems, on function-level benchmarks and on the project-level suite of RQ4. For
-HumanEval and MBPP, AutoDev is run with the PM and Architect stages bypassed so
-that the comparison isolates the Developer--QA--verification loop.
+\textbf{Single-prompt baseline.} The baseline
+(\texttt{evaluation/\allowbreak run\_single\_prompt\_baseline.py}) gives the same
+model the same requirement in one structured call that returns every file of the
+project and its tests (output ceiling 32k tokens). Its output is written to a
+workspace and passed through AutoDev's own static gate and test runner, so
+``self-verified'' means the same for both systems: the code builds and passes the
+tests generated with it. Because each system's tests are its own, the decisive
+comparison uses the held-out acceptance tests (Section~\ref{sec:metrics}): 38
+tests over the seven easy and medium requirements (four to seven per
+requirement), run against the best-scoring service of each of the 21 projects per
+system. Hard requirements are excluded from acceptance testing because their
+services call each other over HTTP, which an in-process test cannot drive.
+Published multi-agent systems (MetaGPT, ChatDev, AgentCoder) were not rerun, and
+their reported function-level figures are not comparable with project-level
+results, so they are omitted. Table~\ref{tab:baselines} gives the results.
 
 \begin{table}[t]
-\caption{Comparison with Baselines (same base model where applicable)}
+\caption{AutoDev vs.\ a Single-Prompt Baseline (DeepSeek V4.1 Flash; acceptance tests on the 21 easy and medium projects per system)}
 \label{tab:baselines}
 \centering
 \footnotesize
-\setlength{\tabcolsep}{3.5pt}
+\setlength{\tabcolsep}{3pt}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{@{}lcccc@{}}
+\begin{tabular}{@{}lccc@{}}
 \toprule
-System & HumanEval & MBPP & Project RSR & Tokens/run \\
-       & pass@1 (\%) & pass@1 (\%) & (\%) & (k) \\
+Metric & Single prompt & AutoDev v1 & AutoDev v2 \\
 \midrule
-Single prompt          & \tbd & \tbd & \tbd & \tbd \\
-MetaGPT~\cite{hong2024metagpt}   & \tbd & \tbd & \tbd & \tbd \\
-ChatDev~\cite{qian2024chatdev}   & \tbd & \tbd & \tbd & \tbd \\
-AgentCoder~\cite{huang2023agentcoder} & \tbd & \tbd & \tbd & \tbd \\
-\textbf{AutoDev}       & \tbd & \tbd & \tbd & \tbd \\
+Self-verified, easy+medium      & 16/21 & 7/21 & 10/21 \\
+Self-verified, all 30 runs      & 73.3\% & 23.3\% & 40.0\% \\
+Acceptance: projects all-pass   & \textbf{20/21} & 7/21 & 15/21 \\
+Acceptance: tests passed        & \textbf{107/114} & 42/114 & 88/114 \\
+Verified and all-pass           & 16 of 16 & 6 of 7 & 9 of 10 \\
+All-pass but rejected           & 4 & 1 & 6 \\
+Tokens per run (k)              & 18.6 & 179.1 & 167.4 \\
+Cost per run (US\$)             & 0.022 & 0.149 & 0.147 \\
+Latency per run (min)           & 2.0 & 7.6 & 7.6 \\
 \bottomrule
 \end{tabular}}
+\vspace{2pt}
+\parbox{\columnwidth}{\scriptsize Token, cost and latency rows are means over all 30 runs (all tiers).
+On the hard tier the baseline was self-verified in 6 of 9 runs, AutoDev v2 in 2 of 9.}
 \end{table}
 
-\textbf{Ablation.} Table~\ref{tab:ablation} removes one mechanism at a time on the
-RQ4 suite.
+On this suite and model the single prompt is the stronger system: 20 of its 21
+easy and medium projects pass every acceptance test, against 15 for AutoDev with
+v2 prompts and 7 with v1, at about one seventh of the cost and a quarter of the
+latency. Three findings qualify the comparison. First, the gap is not in what
+the model can write but in what the pipeline adds: v1's losses were dominated by
+inter-file inconsistency introduced when a project is generated as separately
+planned files, and the v2 prompts that target it doubled the acceptance pass
+count (7 to 15 projects, 42 to 88 tests). Second, AutoDev's remaining gap is
+mostly \emph{false rejection}: six v2 projects passed every acceptance test but
+failed AutoDev's own QA tests, which check more than the requirement states, so
+AutoDev's verdict is conservative; only one v2 project was accepted that the
+held-out tests reject. Third, in that case (an inventory API) the PM agent had
+added an API-key requirement the user never asked for, and every acceptance call
+was refused with 401; this is exactly the drift the PM review gate is designed
+to catch, but the benchmark auto-approves the gate. The single prompt's
+advantage is therefore one of \emph{small projects that fit in one model reply};
+the mechanisms evaluated in RQ1--RQ3 matter when a project, a model or a
+provider does not.
+
+\textbf{Ablation.} Running each variant as a separate 30-run benchmark was beyond
+the experiment's budget, so Table~\ref{tab:ablation} estimates each mechanism's
+contribution counterfactually from the per-attempt event logs of the 30 v2 runs
+(\texttt{evaluation/\allowbreak analyse\_attempts.py}): each attempt's static
+verdict, QA calls and scores, test results and regenerated services are
+replayed under the variant's rule.
 
 \begin{table}[t]
-\caption{Ablation on the End-to-End Suite}
+\caption{Counterfactual Ablation on the 30 v2 Runs}
 \label{tab:ablation}
 \centering
 \footnotesize
-\setlength{\tabcolsep}{3.5pt}
+\setlength{\tabcolsep}{3pt}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcccc@{}}
 \toprule
-Variant & RSR (\%) & Dev.\ calls & HTTP 429s & Tokens (k) \\
+Variant & RSR (\%) & Service gens/run & QA calls/run & Tokens (k) \\
 \midrule
-Full AutoDev                     & \tbd & \tbd & \tbd & \tbd \\
--- static gate (QA first)        & \tbd & \tbd & \tbd & \tbd \\
--- test execution (QA score only)& \tbd & \tbd & \tbd & \tbd \\
--- attribution (regenerate all)  & \tbd & \tbd & \tbd & \tbd \\
--- token budget                  & \tbd & \tbd & \tbd & \tbd \\
--- structured-output ladder      & \tbd & \tbd & \tbd & \tbd \\
--- difficulty routing            & \tbd & \tbd & \tbd & \tbd \\
+Full AutoDev                          & 40.0 & 3.73 & 3.17 & 167.4 \\
+-- static gate (QA first)             & 40.0 & 3.73 & 4.50 & 198.8 \\
+-- test execution (QA score only)     & 56.7$^{a}$ & -- & -- & -- \\
+-- attribution (regenerate all)       & 40.0 & 3.87 & 3.17 & -- \\
+-- token budget                       & \multicolumn{4}{c}{no change on DeepSeek (1 HTTP 429 in 30 runs)$^{b}$} \\
+-- structured-output ladder           & 0.0$^{c}$ & -- & -- & -- \\
+-- difficulty routing                 & \multicolumn{4}{c}{no change (routing disabled in all runs)} \\
 \bottomrule
 \end{tabular}}
+\vspace{2pt}
+\parbox{\columnwidth}{\scriptsize $^{a}$Claimed rate: 17 runs would be accepted on QA scores alone, 5 of them
+with failing tests, so the true rate stays 40.0\%. $^{b}$Under a simulated 8k TPM limit (RQ3): 48 vs.\ 1
+rejections. $^{c}$DeepSeek rejects the \texttt{native} and \texttt{json\_schema} formats with HTTP 400, so without
+the ladder every structured call fails. ``--'': not estimated.}
 \end{table}
 
-\textbf{Human review gates.} \ph{Report, for a small user study with
-$N$=\tbd\ participants: revision rounds per gate (PM: \tbd, Architect: \tbd),
-median time to approve, and the share of revisions that changed scope versus
-wording. Expected finding to confirm: most corrections occur at the PM gate, where
-they cost one structured call instead of a full Developer--QA loop.}
+Without the static gate, the 19 attempts it stopped in 15 runs would have gone
+to QA review first, costing 40 more QA calls and 0.94\,M more tokens (+18.7\%) for
+the same verdicts; with v1 prompts the cost would have been 64 calls and 1.61\,M
+tokens. Without test execution, acceptance on QA scores alone would have claimed
+a 56.7\% success rate, but 5 of the 17 runs it accepts have failing tests (7 of
+14 with v1, a claimed 46.7\% against a true 23.3\%), so execution is what keeps
+the reported success rate honest. Attribution saved 4 of 116 service generations
+overall (3.4\%), all on multi-service runs (71 vs.\ 75): most rework attempts in
+this benchmark failed in every service at once, so the 64.4\% saving measured in
+RQ2 is an upper bound reached when failures are isolated. The token budget was
+idle because DeepSeek's paid tier rarely refused a request; its value is the
+free-tier case of RQ3. The ladder, by contrast, was required for any structured
+call to succeed on this provider.
 
 \subsection{Discussion}
 The component results support the central design choice of AutoDev: ordering
@@ -910,27 +1011,44 @@ checks by cost and preferring execution over opinion. Because build faults are
 both common and free to detect, the static gate absorbs most failures before any
 reviewer call, and real tests catch three quarters of the logic faults that
 remain; the rest slip through only where the generated tests do not exercise a
-boundary, which argues for QA agents that write boundary cases. Attribution matters as much as detection: once a failure is traced to a
-service, the cost of a repair scales with what is broken rather than with what was
-built. On the operational side, the budget results show that a configured limit
-should be treated as a guess that the provider corrects, and the ladder results
-show that weak models more often fail on output \emph{format} than on content.
-Live runs extend this to naming: a model that produced correct code still
-renamed the service it belonged to, so any invariant the pipeline depends on,
-such as service identity, is better enforced in code than requested in the
-prompt (Section~\ref{sec:verification}).
-\ph{Add 2--3 sentences relating these findings to the RQ4/RQ5 numbers once
-available.}
+boundary, which argues for QA agents that write boundary cases. Attribution
+matters when failures are isolated: once a failure is traced to a service, the
+cost of a repair scales with what is broken rather than with what was built. On
+the operational side, the budget results show that a configured limit should be
+treated as a guess that the provider corrects, and the ladder results show that
+models and providers more often fail on output \emph{format} than on content.
+Live runs extend this to naming: a model that produced correct code still renamed
+the service it belonged to, so any invariant the pipeline depends on, such as
+service identity, is better enforced in code than requested in the prompt
+(Section~\ref{sec:verification}).
+
+The live benchmark adds two less flattering lessons. Decomposition has a cost:
+splitting a project into planned files that are generated and repaired
+separately creates consistency defects a single reply does not have, and with a
+strong model and small projects that cost outweighed the benefit of review. And
+the verifier is only as fair as its tests: AutoDev's QA agent wrote stricter tests
+than the requirement, which made its verdicts conservative (one false accept, six
+false rejects among 21 v2 projects) and lowered its success rate. Both are
+addressable by prompts and by checks in code, as v2 shows, and both were found
+only because the pipeline records per-attempt evidence and was scored against
+tests it did not write.
 
 \subsection{Threats to Validity and Limitations}
 The component results validate mechanisms, not the quality of code produced by
 real models. The reference services are small and the mutation operators simple,
 so detection rates on real generated code may be lower, particularly for logic
-faults the generated tests do not exercise. The local runner is not kernel-level
-isolation. Generation currently targets Python back-end services only, and the
-review gates were auto-approved in the benchmark, which does not capture human
-variability. Baseline numbers taken from other papers may use different model
-versions; we rerun baselines where possible and mark reported figures otherwise.
+faults the generated tests do not exercise. The live benchmark uses one model,
+ten requirements and three repeats per requirement, so tier-level rates rest on
+9 to 12 runs and differences of one or two runs are within noise. The v2 prompts
+were written after inspecting v1 failures on the same requirements, which can
+overfit them to this suite; the held-out acceptance tests were written before
+either system was run and were not changed afterwards, except to accept PATCH as
+well as PUT for an update the requirement does not tie to a method. Hard
+requirements have no acceptance tests. Ablations are counterfactual estimates
+from logs, not separate runs. The review gates were auto-approved, which does not
+capture human variability and removes the gate's chance to catch drift. The local
+runner is not kernel-level isolation, and generation targets Python back-end
+services only. Cost uses DeepSeek's peak rates; off-peak runs cost half.
 
 %% ============================================ VII. CONCLUSION & FUTURE SCOPE
 \section{Conclusion and Future Scope}
@@ -941,14 +1059,23 @@ traced to the service that caused them, and an LLM layer engineered for the rate
 limits and capability gaps of affordable models. In component experiments,
 verification detected 88.7\% of injected faults (every build fault), attribution
 was exact and cut Developer calls by 64\%, and the self-correcting budget nearly
-eliminated rate-limit rejections.
+eliminated rate-limit rejections. With a live model, AutoDev verified 40\% of
+30 runs at US\$0.15 each, and its execution-based verdict was right about
+acceptance in 9 of the 10 projects it accepted; a single prompt nevertheless
+produced more acceptable small projects at lower cost. The pipeline's own
+evidence located why: consistency defects between separately generated files
+and QA tests stricter than the requirement.
 
-Future work includes: (i) a container-based runner for stronger isolation;
-(ii) a DevOps agent that produces Dockerfiles and CI pipelines; (iii) dynamic
-spawning of parallel Developer agents for multi-service projects; (iv) front-end
-and multi-language generation; (v) retrieval over existing codebases so AutoDev
-can extend, not only create, projects; and (vi) the full live-model benchmark,
-baseline comparison and user study outlined in Section~VI.
+Future work includes: (i) generating each service in one reply, with
+cross-file name checks in code, to remove the consistency defects found in RQ4;
+(ii) QA tests derived from the PRD's acceptance criteria only, to reduce false
+rejections; (iii) a container-based runner for stronger isolation; (iv) a DevOps
+agent that produces Dockerfiles and CI pipelines; (v) front-end and
+multi-language generation; (vi) retrieval over existing codebases so AutoDev can
+extend, not only create, projects; and (vii) a user study of the two review
+gates and a repeat of the benchmark with more models. Concurrent per-service
+generation, listed as future work in an earlier draft, is now implemented
+(Section~IV).
 
 \section*{Acknowledgment}
 The authors thank Prof.\ Shridevi A. Desai, Assistant Professor, and the Department of

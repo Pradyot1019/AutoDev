@@ -1,0 +1,180 @@
+{
+ "summary": {
+  "label": "pilot-lowthink",
+  "runs": 3,
+  "rsr": 33.333333333333336,
+  "static_failed_attempts": 2,
+  "runs_with_a_static_failure": 2,
+  "extra_qa_calls_without_static_gate": 4.5,
+  "extra_qa_tokens_without_static_gate": 104555,
+  "service_generations": 12,
+  "service_generations_without_attribution": 13,
+  "multi_service_runs": 1,
+  "multi_service_generations": 8,
+  "multi_service_generations_without_attribution": 9,
+  "accepted_without_tests": 2,
+  "false_accepts_without_tests": 1,
+  "rsr_claimed_without_tests": 66.66666666666667,
+  "rsr_true_without_tests": 33.333333333333336,
+  "runs_with_rejected_rungs": 3,
+  "mean_tokens": 215862.33333333334
+ },
+ "runs": [
+  {
+   "requirement_id": "E1-todo",
+   "tier": "easy",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 2,
+   "tokens": 93252,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 1,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0
+     ],
+     "tests_passed": 33,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M2-library",
+   "tier": "medium",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.5,
+   "extra_qa_tokens_without_static_gate": 45005,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": true,
+   "rejected_rungs": 2,
+   "tokens": 196692,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 0,
+     "qa_scores": [
+      7.0
+     ],
+     "tests_passed": 26,
+     "tests_failed": 12,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 56,
+     "tests_failed": 3,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "H1-shop",
+   "tier": "hard",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 8,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 59550,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 2,
+   "tokens": 357643,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 1,
+     "qa_scores": [
+      8.0,
+      6.0,
+      7.0
+     ],
+     "tests_passed": 37,
+     "tests_failed": 2,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 2,
+     "preserved": 1,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 12,
+     "qa_critical": 3,
+     "qa_scores": [
+      8.0,
+      5.0,
+      6.0
+     ],
+     "tests_passed": 46,
+     "tests_failed": 27,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    }
+   ]
+  }
+ ]
+}

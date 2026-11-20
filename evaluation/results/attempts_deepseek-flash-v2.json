@@ -1,0 +1,1511 @@
+{
+ "summary": {
+  "label": "deepseek-flash-v2",
+  "runs": 30,
+  "rsr": 40.0,
+  "static_failed_attempts": 19,
+  "runs_with_a_static_failure": 15,
+  "extra_qa_calls_without_static_gate": 40.0,
+  "extra_qa_tokens_without_static_gate": 940902,
+  "service_generations": 112,
+  "service_generations_without_attribution": 116,
+  "multi_service_runs": 9,
+  "multi_service_generations": 71,
+  "multi_service_generations_without_attribution": 75,
+  "accepted_without_tests": 17,
+  "false_accepts_without_tests": 5,
+  "rsr_claimed_without_tests": 56.666666666666664,
+  "rsr_true_without_tests": 40.0,
+  "runs_with_rejected_rungs": 6,
+  "mean_tokens": 167427.73333333334
+ },
+ "runs": [
+  {
+   "requirement_id": "E2-shortener",
+   "tier": "easy",
+   "passed": false,
+   "attempts": 0,
+   "service_generations": 0,
+   "service_generations_without_attribution": 0,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 2,
+   "tokens": 26262,
+   "attempt_log": []
+  },
+  {
+   "requirement_id": "E3-notes",
+   "tier": "easy",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 2,
+   "tokens": 76593,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0
+     ],
+     "tests_passed": 22,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "E1-todo",
+   "tier": "easy",
+   "passed": true,
+   "attempts": 2,
+   "service_generations": 2,
+   "service_generations_without_attribution": 2,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 2,
+   "tokens": 108799,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 23,
+     "tests_failed": 3,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 1,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0
+     ],
+     "tests_passed": 51,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M3-events",
+   "tier": "medium",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 2,
+   "tokens": 71777,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 0,
+     "qa_scores": [
+      8.0
+     ],
+     "tests_passed": 19,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M1-expenses",
+   "tier": "medium",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 32615,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": true,
+   "rejected_rungs": 2,
+   "tokens": 137205,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 0,
+     "qa_scores": [
+      8.0
+     ],
+     "tests_passed": 24,
+     "tests_failed": 7,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 5,
+     "qa_critical": 1,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 0,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    }
+   ]
+  },
+  {
+   "requirement_id": "M2-library",
+   "tier": "medium",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 37870,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": true,
+   "rejected_rungs": 2,
+   "tokens": 160032,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 0,
+     "qa_scores": [
+      8.0
+     ],
+     "tests_passed": 16,
+     "tests_failed": 18,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 2,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0
+     ],
+     "tests_passed": 31,
+     "tests_failed": 34,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M4-inventory",
+   "tier": "medium",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 102991,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 5,
+     "qa_critical": 0,
+     "qa_scores": [
+      7.0
+     ],
+     "tests_passed": 31,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "H3-lms",
+   "tier": "hard",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 9,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 2,
+   "extra_qa_calls_without_static_gate": 4.0,
+   "extra_qa_tokens_without_static_gate": 117672,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 257889,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 9,
+     "qa_critical": 1,
+     "qa_scores": [
+      8.0,
+      8.0,
+      3.0
+     ],
+     "tests_passed": 65,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    }
+   ]
+  },
+  {
+   "requirement_id": "H2-delivery",
+   "tier": "hard",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 9,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 53364,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 352266,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 7,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0,
+      6.0,
+      8.0
+     ],
+     "tests_passed": 25,
+     "tests_failed": 40,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 8,
+     "qa_critical": 2,
+     "qa_scores": [
+      8.0,
+      4.0,
+      7.0
+     ],
+     "tests_passed": 51,
+     "tests_failed": 53,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "H1-shop",
+   "tier": "hard",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 7,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 48993,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 328381,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 8,
+     "qa_critical": 1,
+     "qa_scores": [
+      6.0,
+      6.0,
+      9.0
+     ],
+     "tests_passed": 41,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 2,
+     "preserved": 1,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 2,
+     "preserved": 1,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 6,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0,
+      6.0,
+      9.0
+     ],
+     "tests_passed": 38,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "E2-shortener",
+   "tier": "easy",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 75461,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 0,
+     "qa_scores": [
+      8.0
+     ],
+     "tests_passed": 19,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "E3-notes",
+   "tier": "easy",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 74535,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 2,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0
+     ],
+     "tests_passed": 19,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "E1-todo",
+   "tier": "easy",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": true,
+   "rejected_rungs": 0,
+   "tokens": 139904,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 1,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 28,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 1,
+     "qa_scores": [
+      2.0
+     ],
+     "tests_passed": 0,
+     "tests_failed": 57,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 1,
+     "qa_critical": 0,
+     "qa_scores": [
+      8.0
+     ],
+     "tests_passed": 86,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M3-events",
+   "tier": "medium",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 77956,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 2,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0
+     ],
+     "tests_passed": 22,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M1-expenses",
+   "tier": "medium",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 34589,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": true,
+   "rejected_rungs": 0,
+   "tokens": 146502,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 1,
+     "qa_scores": [
+      7.0
+     ],
+     "tests_passed": 34,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 7,
+     "qa_critical": 0,
+     "qa_scores": [
+      8.0
+     ],
+     "tests_passed": 30,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M2-library",
+   "tier": "medium",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 39608,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 166364,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 1,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 31,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 33,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M4-inventory",
+   "tier": "medium",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 31345,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 142658,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 1,
+     "qa_scores": [
+      7.0
+     ],
+     "tests_passed": 30,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 1,
+     "qa_critical": 1,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 49,
+     "tests_failed": 4,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "H2-delivery",
+   "tier": "hard",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 172029,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 5,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0,
+      7.0,
+      8.0
+     ],
+     "tests_passed": 37,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "H1-shop",
+   "tier": "hard",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 9,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 48202,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 328130,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 8,
+     "qa_critical": 1,
+     "qa_scores": [
+      6.0,
+      5.0,
+      9.0
+     ],
+     "tests_passed": 12,
+     "tests_failed": 11,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 8,
+     "qa_critical": 2,
+     "qa_scores": [
+      4.0,
+      5.0,
+      6.0
+     ],
+     "tests_passed": 15,
+     "tests_failed": 31,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    }
+   ]
+  },
+  {
+   "requirement_id": "H3-lms",
+   "tier": "hard",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 9,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 2,
+   "extra_qa_calls_without_static_gate": 6.0,
+   "extra_qa_tokens_without_static_gate": 117586,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 247785,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 3,
+     "qa_scores": [
+      6.0,
+      6.0,
+      6.0
+     ],
+     "tests_passed": 66,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    }
+   ]
+  },
+  {
+   "requirement_id": "E1-todo",
+   "tier": "easy",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 150037,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 28,
+     "tests_failed": 5,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 1,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 67,
+     "tests_failed": 2,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 1,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 99,
+     "tests_failed": 4,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "E2-shortener",
+   "tier": "easy",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 37420,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 151482,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 4,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 23,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 41,
+     "tests_failed": 3,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    }
+   ]
+  },
+  {
+   "requirement_id": "E3-notes",
+   "tier": "easy",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 95705,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 2,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0
+     ],
+     "tests_passed": 28,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M2-library",
+   "tier": "medium",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 91952,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 0,
+     "qa_scores": [
+      9.0
+     ],
+     "tests_passed": 27,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M1-expenses",
+   "tier": "medium",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 38639,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 179450,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 6,
+     "qa_critical": 1,
+     "qa_scores": [
+      5.0
+     ],
+     "tests_passed": 43,
+     "tests_failed": 2,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 5,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 85,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M4-inventory",
+   "tier": "medium",
+   "passed": true,
+   "attempts": 1,
+   "service_generations": 1,
+   "service_generations_without_attribution": 1,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 78787,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 0,
+     "qa_scores": [
+      7.0
+     ],
+     "tests_passed": 26,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "M3-events",
+   "tier": "medium",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 3,
+   "service_generations_without_attribution": 3,
+   "static_failed_attempts": 0,
+   "extra_qa_calls_without_static_gate": 0.0,
+   "extra_qa_tokens_without_static_gate": 0,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 218065,
+   "attempt_log": [
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 5,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 24,
+     "tests_failed": 4,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 3,
+     "qa_critical": 2,
+     "qa_scores": [
+      5.0
+     ],
+     "tests_passed": 1,
+     "tests_failed": 60,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 1,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 5,
+     "qa_critical": 0,
+     "qa_scores": [
+      6.0
+     ],
+     "tests_passed": 66,
+     "tests_failed": 10,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  },
+  {
+   "requirement_id": "H1-shop",
+   "tier": "hard",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 9,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 2,
+   "extra_qa_calls_without_static_gate": 4.0,
+   "extra_qa_tokens_without_static_gate": 118528,
+   "accepted_without_tests": false,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 314020,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 8,
+     "qa_critical": 2,
+     "qa_scores": [
+      8.0,
+      5.0,
+      5.0
+     ],
+     "tests_passed": 33,
+     "tests_failed": 20,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    }
+   ]
+  },
+  {
+   "requirement_id": "H2-delivery",
+   "tier": "hard",
+   "passed": false,
+   "attempts": 3,
+   "service_generations": 9,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 2,
+   "extra_qa_calls_without_static_gate": 4.0,
+   "extra_qa_tokens_without_static_gate": 126790,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": true,
+   "rejected_rungs": 0,
+   "tokens": 253649,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 6,
+     "qa_critical": 0,
+     "qa_scores": [
+      8.0,
+      8.0,
+      8.0
+     ],
+     "tests_passed": 31,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    }
+   ]
+  },
+  {
+   "requirement_id": "H3-lms",
+   "tier": "hard",
+   "passed": true,
+   "attempts": 3,
+   "service_generations": 7,
+   "service_generations_without_attribution": 9,
+   "static_failed_attempts": 1,
+   "extra_qa_calls_without_static_gate": 2.0,
+   "extra_qa_tokens_without_static_gate": 57681,
+   "accepted_without_tests": true,
+   "false_accept_without_tests": false,
+   "rejected_rungs": 0,
+   "tokens": 296166,
+   "attempt_log": [
+    {
+     "regenerated": 3,
+     "preserved": 0,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 5,
+     "qa_critical": 2,
+     "qa_scores": [
+      8.0,
+      9.0,
+      4.0
+     ],
+     "tests_passed": 45,
+     "tests_failed": 1,
+     "tests_blocked": 0,
+     "tests_ran": true
+    },
+    {
+     "regenerated": 2,
+     "preserved": 1,
+     "static_passed": false,
+     "qa_reached": false,
+     "qa_bugs": 0,
+     "qa_critical": 0,
+     "qa_scores": [],
+     "tests_passed": 0,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": false
+    },
+    {
+     "regenerated": 2,
+     "preserved": 1,
+     "static_passed": true,
+     "qa_reached": true,
+     "qa_bugs": 6,
+     "qa_critical": 0,
+     "qa_scores": [
+      8.0,
+      7.0,
+      7.0
+     ],
+     "tests_passed": 36,
+     "tests_failed": 0,
+     "tests_blocked": 0,
+     "tests_ran": true
+    }
+   ]
+  }
+ ]
+}

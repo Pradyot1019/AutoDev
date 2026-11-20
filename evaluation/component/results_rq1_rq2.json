@@ -9,9 +9,9 @@
   "n_detected": 125,
   "caught_by_static": 75,
   "share_of_detected_stopped_before_qa": 0.6,
-  "static_median_ms": 124.95359999593347,
-  "tests_median_s": 2.0657791499979794,
-  "speed_ratio": 16.53237001627171,
+  "static_median_ms": 127.80899996869266,
+  "tests_median_s": 2.0170383999939077,
+  "speed_ratio": 15.78166170213357,
   "false_positives": 0,
   "by_operator": {
    "syntax_error": {
