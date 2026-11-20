@@ -53,7 +53,7 @@ RESULTS_DIR = HERE / "results"
 _INFRA_ERROR = re.compile(
     r"per.?day|perday|daily|quota exceeded for metric.*day|"
     r"api key not valid|invalid api key|invalid_api_key|permission denied|"
-    r"error code: 40[13]\b|insufficient_quota|billing",
+    r"error code: 40[123]\b|insufficient_quota|insufficient balance|billing",
     re.IGNORECASE,
 )
 
