@@ -41,7 +41,10 @@ Your tests are executed with pytest, with the service's source directory on the 
   Any other fixture will error, so define it in the test file itself.
 • Do not depend on a running database, network access, or seeded data.
 • Each test must be independent and must clean up after itself.
-• Prefer testing pure functions and request/response contracts over implementation details.
+• Test the application the way a client uses it, through `client`. Do not create its
+  tables, override its dependencies or patch its internals: if the application cannot
+  set itself up, that is a bug the tests must expose, not work around.
+• Prefer testing request/response contracts over implementation details.
 
 ----------------------------------------------------
 TEST COVERAGE (REQUIRED)
@@ -55,6 +58,11 @@ Passing tests are only evidence if they exercise the behaviour that was asked fo
   resource, 409 for a conflict or duplicate, 422 for invalid input, 401/403 for missing or wrong
   credentials, and any business rule (limits, capacity, allowed state changes).
 • Every validation rule (required fields, formats, ranges) gets at least one invalid-input test.
+
+SCOPE: test only behaviour the requirement, PRD or architecture actually states. Where they
+are silent -- type coercion, case sensitivity, extra validation, the status code of a case
+nobody specified, the exact shape of a response envelope -- do not write a test that fails
+on a reasonable choice. Report such concerns as minor bugs instead.
 • Many short tests, not a few long ones: one behaviour per test, a few lines each, so a failure names
   exactly what broke. Aim for at least two tests per endpoint.
 • Spend the output on tests: keep `overall_assessment`, descriptions and recommendations brief.

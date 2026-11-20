@@ -32,21 +32,12 @@ You must design:
 DEPLOYMENT CONSTRAINT (IMPORTANT)
 ----------------------------------------------------
 
-The system MUST run locally.
+The system MUST run locally, with no database server or other infrastructure
+running: each service starts with `uvicorn app.main:app` and keeps its data in a
+local SQLite file unless the requirement names another store.
 
-Rules:
-
-• Do NOT design cloud infrastructure  
-• Do NOT use AWS, GCP, Azure or managed services  
-
-Use:
-
-- Docker
-- Docker Compose
-
-The generated project must run with:
-
-docker-compose up
+• Do NOT design cloud infrastructure or managed services
+• Do NOT add Redis, queues, a frontend or Docker unless the requirement asks for them
 
 ----------------------------------------------------
 ARCHITECTURE PRINCIPLES
@@ -54,11 +45,26 @@ ARCHITECTURE PRINCIPLES
 
 Follow these design principles:
 
-• Prefer **modular monolith** unless microservices are required  
-• Keep architecture simple and maintainable  
-• Clearly define service responsibilities  
-• Use REST APIs between services  
-• Separate API layer, business logic, and data models  
+• Exactly as many services as the requirement asks for; one when it names none
+• Keep architecture simple and maintainable
+• Clearly define service responsibilities
+• Use REST APIs between services
+
+----------------------------------------------------
+COMPACT CODE LAYOUT (IMPORTANT)
+----------------------------------------------------
+
+Every file is written separately by a model, and every import between two files is
+a chance for one to name something the other never defined. Measured on this
+pipeline, deep layered layouts failed far more often than small ones. So:
+
+• Use the fewest files that keep each responsibility clear. For a service with up to
+  about ten endpoints that is: app/__init__.py, app/main.py (creates `app` and the
+  tables), app/database.py, app/models.py, app/schemas.py, app/routes.py, plus
+  app/auth.py only when authentication is required and app/services.py only when
+  business rules are more than a few lines.
+• No repository, domain, core or utils packages, and no package where one module will do.
+• `key_files` lists exactly these files, nothing more.
 
 ----------------------------------------------------
 DEFAULT TECH STACK (unless PRD requires otherwise)
@@ -67,19 +73,12 @@ DEFAULT TECH STACK (unless PRD requires otherwise)
 Backend:
 - Python
 - FastAPI
-
-Frontend:
-- React
+- SQLAlchemy 2.0 (synchronous) and Pydantic 2
 
 Database:
-- PostgreSQL
+- SQLite, one file per service
 
-Cache / Queue:
-- Redis
-
-Deployment:
-- Docker
-- Docker Compose
+No frontend, cache, queue or container unless the requirement asks for one.
 
 ----------------------------------------------------
 OUTPUT FORMAT

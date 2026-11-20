@@ -33,13 +33,23 @@ PATHS
 - Spell `service_name` exactly as the architecture does.
 
 BACKEND (Python/FastAPI or equivalent)
-- One router file per domain (auth.py, expenses.py).
-- Pydantic models with validation for every request and response body.
-- Complete JWT auth: register, login, token generation, verification middleware.
-- Hash passwords with bcrypt; never store plaintext.
+- Follow the architecture's file layout exactly; add no extra modules or packages.
+- Pydantic 2 models with validation for every request and response body
+  (`model_config = ConfigDict(from_attributes=True)`, never `orm_mode`).
 - SQLAlchemy models with real relationships (ForeignKey, back_populates).
-- Scope every query to the authenticated user — one user must never read another's rows.
-- CORS configured for the frontend origin.
+- Create the database tables when the application starts (for example
+  `Base.metadata.create_all(engine)` in app/main.py): the service must work on a
+  fresh, empty database with no migration step.
+- ONLY when the requirement asks for authentication: complete JWT auth (register,
+  login, token generation, verification middleware), passwords hashed with bcrypt, and every
+  query scoped to the authenticated user. Never add authentication it did not ask for.
+- CORS only when the requirement includes a frontend.
+
+CONSISTENCY BETWEEN FILES (IMPORTANT)
+- Every name you import from another file of this service must be defined in that
+  file, under exactly that name, in this same answer. Check every import line.
+- Keep one name per concept (`TodoCreate`, not `TodoCreate` in one file and
+  `TodoCreateRequest` in another).
 - Errors as `{{"detail": "message"}}`, consistently.
 - Read config from the environment with `os.getenv` or pydantic-settings; no
   hardcoded secrets, passwords or API keys. `DATABASE_URL` falls back to a local
@@ -85,6 +95,7 @@ actually compiling and running your code, not from opinion.
 
 1. Read every failure report carefully. Compiler errors and failing tests are facts; fix them first.
 2. Output ONLY the files that need to change. Do not regenerate files that were already correct.
+   If you rename or remove a name, also output every file that imports it.
 3. Apply every fix in the `suggested_fix` field of each reported bug.
 4. Do not break a passing test in order to fix a failing one.
 5. If a test itself encodes the wrong expectation, fix the source so the documented behaviour holds.

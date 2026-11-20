@@ -47,8 +47,10 @@ def _pct(numerator: float, denominator: float) -> float | None:
 
 
 def _tokens(row: dict[str, Any]) -> int:
+    # Calls without usage are the provider's instant 400 rejections of an
+    # unsupported output mode, which are not billed; reported usage is the total.
     actual = row.get("actual_tokens")
-    if actual is not None and row.get("calls_with_usage") == row.get("llm_calls"):
+    if actual is not None:
         return int(actual)
     return int(row.get("reserved_tokens") or 0)
 
