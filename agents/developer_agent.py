@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from agents import attribution
@@ -127,11 +129,16 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
         # deterministic thing known about the size of the answer before the call.
         contract = _parse_contract(state.get("contract"))
 
+        # Three phases. Planning and applying run in architecture order, because
+        # they read and write the shared manifest and the files on disk. Only the
+        # model calls in between run concurrently: each service's prompt is fixed
+        # before any call starts, so no answer can depend on another's timing,
+        # and the shared token budget still paces them on a rate-limited provider.
+        jobs: list[_Job] = []
         for index, (service, slug) in enumerate(zip(services, slugs, strict=True), start=1):
             if slug not in targeted:
                 logger.info("Service %d/%d %s preserved", index, len(services), slug)
                 preserved.append(slug)
-                generated.append(slug)
                 continue
 
             logger.info("Service %d/%d: %s", index, len(services), service.get("name"))
@@ -170,33 +177,36 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
                 signal=_route_signal(contract, slug, escalations.get(slug, 0), reason or ""),
             )
 
-            try:
-                # Each call is metered by the shared budget, so the pacing that
-                # makes one call fit also spaces the calls apart.
-                response = await model.ainvoke(
-                    _prompt_within_budget(
-                        slug,
-                        lambda detail, service=service, qa=qa_for, static=static_for, tests=verification_for: (
-                            get_developer_prompt(
-                                state["user_requirements"],
-                                state.get("prd") or {},
-                                state.get("architecture") or {},
-                                service=service,
-                                qa_report=qa,
-                                static_report=static,
-                                verification_report=tests,
-                                detail=detail,
-                            )
-                        ),
-                        demand=_output_demand(contract, slug),
+            prompt = _prompt_within_budget(
+                slug,
+                lambda detail, service=service, qa=qa_for, static=static_for, tests=verification_for: (
+                    get_developer_prompt(
+                        state["user_requirements"],
+                        state.get("prd") or {},
+                        state.get("architecture") or {},
+                        service=service,
+                        qa_report=qa,
+                        static_report=static,
+                        verification_report=tests,
+                        detail=detail,
                     )
-                )
-            except Exception as exc:
+                ),
+                demand=_output_demand(contract, slug),
+            )
+            jobs.append(_Job(service, slug, model, prompt, qa_for, static_for, verification_for))
+
+        responses = await _generate_all(jobs, get_settings().developer_parallelism)
+        landed: set[str] = set()
+
+        for job, response in zip(jobs, responses, strict=True):
+            service, slug = job.service, job.slug
+            qa_for, static_for, verification_for = job.qa, job.static, job.verification
+            if isinstance(response, Exception):
                 # Carry on: the remaining services are independent, and every one
                 # that lands is one the retry does not have to pay for again.
-                logger.error("Service %s failed to generate: %s", slug, exc)
+                logger.error("Service %s failed to generate: %s", slug, response)
                 failed.append(slug)
-                if classify(exc) is Disposition.ABORT:
+                if classify(response) is Disposition.ABORT:
                     unrecoverable[0] = True
                 continue
 
@@ -221,7 +231,10 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
             _merge_output(combined, output)
             save_json(combined, workspace.artifacts / ARTIFACT_JSON)
             _write_code(output, workspace, manifest)
-            generated.append(slug)
+            landed.add(slug)
+
+        # Architecture order, as the sequential loop always reported it.
+        generated.extend(slug for slug in slugs if slug in landed or slug in preserved)
 
         # A service that failed leaves the rest of the project standing. It is
         # recorded in `failed_services`, its previous files are untouched, and the
@@ -285,6 +298,38 @@ async def developer_agent(state: MultiAgent) -> dict[str, Any]:
         update["service_escalations"] = escalations
         update["service_attempts"] = attempts
         return update
+
+
+@dataclass(frozen=True)
+class _Job:
+    """One service's generation call, planned before any call starts."""
+
+    service: dict[str, Any]
+    slug: str
+    model: Any
+    prompt: list
+    qa: Any
+    static: Any
+    verification: Any
+
+
+async def _generate_all(jobs: list[_Job], parallelism: int) -> list[Any]:
+    """Every job's response, or the exception it raised, in job order.
+
+    At most ``parallelism`` calls are in flight. A failure is returned rather
+    than raised, so one service's error never cancels another's call.
+    """
+    gate = asyncio.Semaphore(max(1, parallelism))
+
+    async def one(job: _Job) -> Any:
+        async with gate:
+            logger.info("Generating %s", job.slug)
+            try:
+                return await job.model.ainvoke(job.prompt)
+            except Exception as exc:
+                return exc
+
+    return list(await asyncio.gather(*(one(job) for job in jobs)))
 
 
 def _call_tokens(prompt: list, demand: int | None) -> int:

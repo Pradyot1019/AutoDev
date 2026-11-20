@@ -70,6 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--requirements", type=Path, default=DEFAULT_REQUIREMENTS)
     parser.add_argument("--repeats", type=int, default=3, help="Runs per requirement (default 3).")
+    parser.add_argument(
+        "--concurrency", type=int, default=1,
+        help="Runs in flight at once (default 1). Latency is wall-clock per run, so say which was used.",
+    )
     parser.add_argument("--only", nargs="*", default=None, help="Requirement ids to run.")
     parser.add_argument("--tier", choices=("easy", "medium", "hard"), help="Run one tier only.")
     parser.add_argument(
@@ -279,12 +283,26 @@ def run_metrics(state: dict[str, Any]) -> dict[str, Any]:
         "llm_calls": int(cost.get("calls") or 0),
         "reserved_tokens": int(cost.get("reserved_tokens") or 0),
         "actual_tokens": cost.get("actual_tokens"),
+        "input_tokens": cost.get("input_tokens"),
+        "output_tokens": cost.get("output_tokens"),
+        "calls_with_usage": int(cost.get("calls_with_usage") or 0),
+        "estimated_cost_usd": cost.get("estimated_cost"),
         "rate_limited": int(cost.get("rate_limited") or 0),
         "llm_outcomes": cost.get("outcomes") or {},
         "model_seconds": float(cost.get("seconds") or 0.0),
         "by_model": {
             name: {"calls": totals.get("calls"), "reserved_tokens": totals.get("reserved_tokens")}
             for name, totals in (cost.get("by_model") or {}).items()
+        },
+        # Per stage, so ablation estimates (QA calls spent on code that does not
+        # build, Developer calls without attribution) can be read off each run.
+        "by_stage": {
+            name: {
+                "calls": totals.get("calls"),
+                "actual_tokens": totals.get("actual_tokens"),
+                "outcomes": totals.get("outcomes"),
+            }
+            for name, totals in (cost.get("by_stage") or {}).items()
         },
     }
 
@@ -364,28 +382,47 @@ async def benchmark(args: argparse.Namespace) -> int:
 
     async with open_database() as database, open_checkpointer() as checkpointer:
         service = await RunService(database, checkpointer).start()
-        try:
-            for index, (item, repeat) in enumerate(todo, start=1):
-                print(f"\n[{index}/{len(todo)}] {item['id']} ({item['tier']}) repeat {repeat}")
-                row = await run_one(service, item, repeat, args.run_timeout)
-                row["label"] = args.label
-                row["config"] = snapshot
-                append_row(out, row)
+        # Runs are independent (own workspace, own ledger, own graph thread), so
+        # several can share the service. Rows are appended from this one event
+        # loop, so the results file never sees two writers at once.
+        gate = asyncio.Semaphore(max(1, args.concurrency))
+        stop = asyncio.Event()
 
-                verdict = "PASS" if row["passed"] else "FAIL"
-                print(
-                    f"    {verdict}  status={row['status']}  attempts={row['developer_attempts']}  "
-                    f"tests={row['tests_passed']}/{row['tests_passed'] + row['tests_failed']}  "
-                    f"calls={row['llm_calls']}  429s={row['rate_limited']}  "
-                    f"{row['latency_seconds'] / 60:.1f} min"
-                )
-                if row["infra_error"]:
-                    print(f"    Infrastructure error, not counted: {row['error'][:300]}")
-                    if not args.keep_going:
-                        print("    Stopping. Fix the provider problem and re-run; finished runs are kept.")
-                        return 3
+        async def one(index: int, item: dict[str, str], repeat: int) -> None:
+            async with gate:
+                if stop.is_set():
+                    return
+                print(f"\n[{index}/{len(todo)}] {item['id']} ({item['tier']}) repeat {repeat} started")
+                row = await run_one(service, item, repeat, args.run_timeout)
+            row["label"] = args.label
+            row["config"] = snapshot
+            row["concurrency"] = args.concurrency
+            append_row(out, row)
+
+            verdict = "PASS" if row["passed"] else "FAIL"
+            cost = row.get("estimated_cost_usd")
+            print(
+                f"    [{index}] {item['id']} r{repeat}: {verdict}  status={row['status']}  "
+                f"attempts={row['developer_attempts']}  "
+                f"tests={row['tests_passed']}/{row['tests_passed'] + row['tests_failed']}  "
+                f"calls={row['llm_calls']}  429s={row['rate_limited']}  "
+                f"cost={'?' if cost is None else f'${cost:.4f}'}  "
+                f"{row['latency_seconds'] / 60:.1f} min"
+            )
+            if row["infra_error"]:
+                print(f"    Infrastructure error, not counted: {row['error'][:300]}")
+                if not args.keep_going:
+                    stop.set()
+
+        try:
+            await asyncio.gather(
+                *(one(index, item, repeat) for index, (item, repeat) in enumerate(todo, start=1))
+            )
         finally:
             await service.stop()
+    if stop.is_set():
+        print("Stopped on an infrastructure error. Fix the provider problem and re-run; finished runs are kept.")
+        return 3
     return 0
 
 

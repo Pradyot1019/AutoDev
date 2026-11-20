@@ -17,8 +17,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
 from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.runnables.config import merge_configs
 from pydantic import BaseModel
 
 from core.config import LLMProvider, ProviderAccount, Purpose, Settings, get_settings
@@ -404,6 +406,67 @@ def usage_tokens(response: Any) -> int | None:
     return None
 
 
+@dataclass(frozen=True)
+class _Usage:
+    total: int | None = None
+    input: int | None = None
+    output: int | None = None
+    cached: int | None = None
+
+
+class _UsageCollector(BaseCallbackHandler):
+    """Keeps the ``usage_metadata`` of every chat generation that ends under it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.reports: list[dict[str, Any]] = []
+
+    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
+        for generations in getattr(response, "generations", None) or []:
+            for generation in generations:
+                usage = getattr(getattr(generation, "message", None), "usage_metadata", None)
+                if isinstance(usage, dict):
+                    self.reports.append(dict(usage))
+
+
+def _with_usage_collector(config: Any) -> tuple[Any, _UsageCollector]:
+    """The call's config plus a callback that sees the provider's usage report.
+
+    A structured call returns a validated schema object, so the message carrying
+    ``usage_metadata`` never reaches the caller. The callback sees it on the way
+    past, whichever rung of the ladder produced the answer.
+    """
+    collector = _UsageCollector()
+    return merge_configs(config or {}, {"callbacks": [collector]}), collector
+
+
+def _usage_of(collector: _UsageCollector, response: Any) -> _Usage:
+    """What the provider reported for this call: the callback first, then the response."""
+    reports = list(collector.reports)
+    if not reports:
+        total = usage_tokens(response)
+        metadata = getattr(response, "usage_metadata", None)
+        if total is None or not isinstance(metadata, dict):
+            return _Usage(total=total)
+        reports = [metadata]
+
+    def summed(key: str) -> int | None:
+        values = [r.get(key) for r in reports if isinstance(r.get(key), int)]
+        return sum(values) if values else None
+
+    cached = [
+        (r.get("input_token_details") or {}).get("cache_read")
+        for r in reports
+    ]
+    cached_values = [c for c in cached if isinstance(c, int)]
+    return _Usage(
+        total=summed("total_tokens"),
+        input=summed("input_tokens"),
+        output=summed("output_tokens"),
+        cached=sum(cached_values) if cached_values else None,
+    )
+
+
 def _prompt_text(prompt: Any) -> str:
     if isinstance(prompt, str):
         return prompt
@@ -495,6 +558,7 @@ def _metered(
         actual: int | None,
         outcome: Outcome,
         rate_limited: bool = False,
+        usage: _Usage | None = None,
     ) -> None:
         record_attempt(
             purpose=purpose.value,
@@ -526,6 +590,9 @@ def _metered(
             # A 429, counted apart from the other transient failures it shares
             # the "retry" outcome with.
             rate_limited=rate_limited,
+            input_tokens=usage.input if usage else None,
+            output_tokens=usage.output if usage else None,
+            cached_input_tokens=usage.cached if usage else None,
         )
 
     def invoke(prompt: Any, config: Any = None) -> Any:
@@ -536,6 +603,7 @@ def _metered(
         reservation = budget.reserve_blocking(claim)
 
         started = time.monotonic()
+        config, collector = _with_usage_collector(config)
         try:
             response = runnable.invoke(prompt, config)
         except Exception as exc:
@@ -543,9 +611,9 @@ def _metered(
             observe(prompt_tokens, claim, started, None, outcome_for(exc), is_rate_limited(exc))
             raise
 
-        actual = usage_tokens(response)
-        observe(prompt_tokens, claim, started, actual, Outcome.SUCCESS)
-        _settle(reservation, actual)
+        usage = _usage_of(collector, response)
+        observe(prompt_tokens, claim, started, usage.total, Outcome.SUCCESS, usage=usage)
+        _settle(reservation, usage.total)
         return response
 
     async def ainvoke(prompt: Any, config: Any = None) -> Any:
@@ -554,6 +622,7 @@ def _metered(
         reservation = await budget.reserve(claim)
 
         started = time.monotonic()
+        config, collector = _with_usage_collector(config)
         try:
             response = await runnable.ainvoke(prompt, config)
         except Exception as exc:
@@ -561,9 +630,9 @@ def _metered(
             observe(prompt_tokens, claim, started, None, outcome_for(exc), is_rate_limited(exc))
             raise
 
-        actual = usage_tokens(response)
-        observe(prompt_tokens, claim, started, actual, Outcome.SUCCESS)
-        _settle(reservation, actual)
+        usage = _usage_of(collector, response)
+        observe(prompt_tokens, claim, started, usage.total, Outcome.SUCCESS, usage=usage)
+        _settle(reservation, usage.total)
         return response
 
     return RunnableLambda(invoke, afunc=ainvoke, name=f"budget:{label}")

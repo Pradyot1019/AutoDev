@@ -22,9 +22,10 @@ of the pipeline. That is recorded as ``None`` and aggregated as "unavailable",
 never quietly replaced with the estimate — the whole point of measuring is to
 know which figures are real.
 
-**No invented pricing.** This repository has no pricing table, and a made-up
-per-token rate would produce a number that looks authoritative and is not. Cost
-is reported as ``None`` until a real pricing source exists.
+**No invented pricing.** Cost comes only from :mod:`llm.pricing`, which lists
+rates copied from a provider's own price page. A model that is not listed, or a
+call whose usage the provider did not report, is costed as ``None`` -- a made-up
+rate would produce a number that looks authoritative and is not.
 
 Scope is per stage. :func:`recording` binds a fresh ledger to a
 :class:`~contextvars.ContextVar`, so two runs executing concurrently in the
@@ -43,6 +44,7 @@ from enum import StrEnum
 from typing import Any
 
 from llm.errors import classify, status_code
+from llm.pricing import cost_of
 
 
 class Outcome(StrEnum):
@@ -144,6 +146,12 @@ class CallRecord:
     escalation_reason: str | None = None
     # True when the provider refused this attempt with a 429; see is_rate_limited.
     rate_limited: bool = False
+    # The provider's own split of ``actual_tokens``, when it reported one, and
+    # what that cost at the listed price (llm.pricing). All None when unknown.
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    cost: float | None = None
 
 
 def empty_totals() -> dict[str, Any]:
@@ -153,6 +161,8 @@ def empty_totals() -> dict[str, Any]:
         "estimated_tokens": 0,
         "reserved_tokens": 0,
         "actual_tokens": None,
+        "input_tokens": None,
+        "output_tokens": None,
         "calls_with_usage": 0,
         "rate_limited": 0,
         "seconds": 0.0,
@@ -164,6 +174,8 @@ def empty_totals() -> dict[str, Any]:
 def _totals_of(records: Iterable[CallRecord]) -> dict[str, Any]:
     totals = empty_totals()
     actual = 0
+    split: dict[str, int | None] = {"input_tokens": None, "output_tokens": None}
+    cost: float | None = None
 
     for record in records:
         totals["calls"] += 1
@@ -175,11 +187,19 @@ def _totals_of(records: Iterable[CallRecord]) -> dict[str, Any]:
         if record.actual_tokens is not None:
             totals["calls_with_usage"] += 1
             actual += record.actual_tokens
+        for field in split:
+            value = getattr(record, field)
+            if value is not None:
+                split[field] = (split[field] or 0) + value
+        if record.cost is not None:
+            cost = (cost or 0.0) + record.cost
 
     # None rather than 0: no provider reported usage, which is not the same as a
     # call that genuinely cost nothing.
     if totals["calls_with_usage"]:
         totals["actual_tokens"] = actual
+    totals.update(split)
+    totals["estimated_cost"] = None if cost is None else round(cost, 6)
 
     totals["seconds"] = round(totals["seconds"], 3)
     return totals
@@ -229,6 +249,9 @@ class Ledger:
         difficulty: str | None = None,
         escalation_reason: str | None = None,
         rate_limited: bool = False,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cached_input_tokens: int | None = None,
         run_id: str | None = None,
         stage: str | None = None,
     ) -> CallRecord:
@@ -250,6 +273,10 @@ class Ledger:
             difficulty=difficulty,
             escalation_reason=escalation_reason,
             rate_limited=bool(rate_limited),
+            input_tokens=None if input_tokens is None else int(input_tokens),
+            output_tokens=None if output_tokens is None else int(output_tokens),
+            cached_input_tokens=None if cached_input_tokens is None else int(cached_input_tokens),
+            cost=cost_of(model, input_tokens, output_tokens, cached_input_tokens),
         )
         self._records.append(entry)
         return entry
@@ -345,9 +372,14 @@ def merge_reports(base: dict[str, Any] | None, addition: dict[str, Any] | None) 
         merged["rate_limited"] += int(report.get("rate_limited") or 0)
         merged["seconds"] += float(report.get("seconds") or 0.0)
 
-        actual = report.get("actual_tokens")
-        if actual is not None:
-            merged["actual_tokens"] = int(actual) + int(merged["actual_tokens"] or 0)
+        # Each stays None unless at least one side had a figure.
+        for field in ("actual_tokens", "input_tokens", "output_tokens"):
+            value = report.get(field)
+            if value is not None:
+                merged[field] = int(value) + int(merged[field] or 0)
+        cost = report.get("estimated_cost")
+        if cost is not None:
+            merged["estimated_cost"] = round(float(cost) + float(merged["estimated_cost"] or 0.0), 6)
 
         for outcome, count in (report.get("outcomes") or {}).items():
             merged["outcomes"][outcome] = merged["outcomes"].get(outcome, 0) + int(count)

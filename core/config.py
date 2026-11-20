@@ -269,6 +269,10 @@ class Settings(BaseSettings):
 
     # ── Pipeline behaviour ───────────────────────────────────────
     max_developer_retries: int = 3
+    # Services the Developer generates at once. Each is an independent call with
+    # its own prompt; the token budget still paces them on a rate-limited
+    # provider. 1 restores strictly one-after-another generation.
+    developer_parallelism: int = Field(default=4, ge=1)
     min_quality_score: int = 7
     stage_timeout_seconds: int = 600
 
