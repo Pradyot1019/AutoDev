@@ -692,3 +692,22 @@ class TestShadowedEnvKeys:
         monkeypatch.delenv("CORS_ORIGINS", raising=False)
 
         assert shadowed_env_keys(str(env)) == []
+
+
+class TestOpenAIThinking:
+    """DeepSeek thinks unless the request says otherwise (it billed 84k reasoning tokens)."""
+
+    def test_disabled_is_sent_as_the_thinking_field(self):
+        settings = Settings(openai_api_key="k", openai_base_url="https://api.deepseek.com", openai_thinking="disabled")
+        model = registry._build(LLMProvider.OPENAI, "deepseek-flash", settings)
+        assert model.extra_body == {"thinking": {"type": "disabled"}}
+
+    def test_unset_sends_nothing(self):
+        model = registry._build(LLMProvider.OPENAI, "gpt-4o-mini", Settings(openai_api_key="k"))
+        assert not model.extra_body
+
+    def test_reasoning_effort_is_passed_through(self):
+        settings = Settings(openai_api_key="k", openai_thinking="enabled", openai_reasoning_effort="low")
+        model = registry._build(LLMProvider.OPENAI, "deepseek-flash", settings)
+        assert model.reasoning_effort == "low"
+        assert model.extra_body == {"thinking": {"type": "enabled"}}

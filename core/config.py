@@ -130,6 +130,17 @@ class Settings(BaseSettings):
     # under a 4,096 ceiling came back empty on every rung, the reasoning having
     # spent the output. low | medium | high; None leaves the model's default.
     groq_reasoning_effort: str | None = None
+    # DeepSeek's chat models think unless told otherwise: with `thinking` omitted
+    # the API enables it, bills the hidden reasoning as output, and ignores the
+    # temperature. A live easy-tier run spent 84k output tokens that way. Sent as
+    # {"thinking": {"type": ...}} through the openai provider when set:
+    # enabled | disabled. None sends nothing, for providers that reject the field.
+    openai_thinking: str | None = None
+    # How hard a thinking model reasons: low | medium | high (DeepSeek also
+    # accepts max). Measured on deepseek-flash: thinking at low effort spent 525
+    # reasoning tokens on a 19.8k-token answer, while thinking disabled cut every
+    # answer off at 8,192 output tokens -- too short for a whole service.
+    openai_reasoning_effort: str | None = None
 
     # ── Credentials ──────────────────────────────────────────────
     google_api_key: str | None = None

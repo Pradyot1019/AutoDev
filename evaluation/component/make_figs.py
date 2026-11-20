@@ -1,13 +1,17 @@
 import json
+from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+HERE = Path(__file__).resolve().parent
+FIGS = HERE.parents[1] / "paper" / "figs"
 plt.rcParams.update({"font.family": "serif",
     "font.serif": ["Times New Roman", "Liberation Serif", "Nimbus Roman", "TeX Gyre Termes", "DejaVu Serif"],
     "font.size": 8, "axes.spines.top": False, "axes.spines.right": False})
 NAVY, PURPLE, RED, GREY = "#00487F", "#7030A0", "#C00000", "#999999"
 
-d = json.load(open("results_rq1_rq2.json"))["rq1"]["by_operator"]
+d = json.load(open(HERE / "results_rq1_rq2.json"))["rq1"]["by_operator"]
 names = {"syntax_error": "Syntax\nerror", "undefined_name": "Undefined\nname", "missing_import": "Missing\nimport",
          "invalid_json": "Invalid\nJSON", "arith_swap": "Arith.\nswap", "compare_swap": "Compare\nswap", "return_none": "Return\nNone"}
 ops = list(names)
@@ -26,9 +30,9 @@ ax.set_ylabel("Faults detected (%)")
 ax.yaxis.grid(True, color="#ddd", lw=0.5); ax.set_axisbelow(True)
 ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.2), ncol=3, frameon=False, fontsize=7)
 fig.tight_layout()
-fig.savefig("/home/claude/paper/figs/fig4_fault_detection.png", dpi=300)
+fig.savefig(FIGS / "fig4_fault_detection.png", dpi=300)
 
-b = json.load(open("results_rq3.json"))["token_budget"]
+b = json.load(open(HERE / "results_rq3.json"))["token_budget"]
 order = [("none", "None", GREY), ("static", "Static\n12k", PURPLE), ("autodev", "AutoDev", RED), ("oracle", "Oracle\n8k", NAVY)]
 fig, (a1, a2) = plt.subplots(1, 2, figsize=(3.5, 1.9))
 for ax, key, title, fmt in [(a1, "rejections", "HTTP 429 rejections", "{:d}"), (a2, "makespan_min", "Makespan (min)", "{:.1f}")]:
@@ -39,5 +43,5 @@ for ax, key, title, fmt in [(a1, "rejections", "HTTP 429 rejections", "{:d}"), (
     ax.set_xticks(range(4)); ax.set_xticklabels([l for _, l, _ in order], fontsize=6)
     ax.set_title(title, fontsize=8); ax.set_ylim(0, max(vals) * 1.18)
 fig.tight_layout()
-fig.savefig("/home/claude/paper/figs/fig5_rate_limit.png", dpi=300)
+fig.savefig(FIGS / "fig5_rate_limit.png", dpi=300)
 print("ok")

@@ -2,7 +2,7 @@
 import json, os, shutil, sys, tempfile, time
 from pathlib import Path
 
-REPO = Path("/home/claude/src/AutoDev")
+REPO = Path(__file__).resolve().parents[2]  # the repository root
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(Path(__file__).parent))
 os.environ.setdefault("LLM_PROVIDER", "google")

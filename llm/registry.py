@@ -215,6 +215,10 @@ def _build(
 
         # Only passed when set, so OpenAI itself keeps the SDK's own default.
         endpoint = {"base_url": settings.openai_base_url} if settings.openai_base_url else {}
+        if settings.openai_thinking:
+            endpoint["extra_body"] = {"thinking": {"type": settings.openai_thinking}}
+        if settings.openai_reasoning_effort:
+            endpoint["reasoning_effort"] = settings.openai_reasoning_effort
         return ChatOpenAI(
             model=model,
             api_key=key,

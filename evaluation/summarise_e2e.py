@@ -46,6 +46,13 @@ def _pct(numerator: float, denominator: float) -> float | None:
     return 100.0 * numerator / denominator if denominator else None
 
 
+def _tokens(row: dict[str, Any]) -> int:
+    actual = row.get("actual_tokens")
+    if actual is not None and row.get("calls_with_usage") == row.get("llm_calls"):
+        return int(actual)
+    return int(row.get("reserved_tokens") or 0)
+
+
 def summarise(rows: list[dict[str, Any]]) -> dict[str, Any]:
     n = len(rows)
     passed = [r for r in rows if r.get("passed")]
@@ -67,7 +74,17 @@ def summarise(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "test_pass": _pct(tests_passed, tests_run),
         "qa_score": mean(qa) if qa else None,
         "llm_calls": mean(r.get("llm_calls") or 0 for r in rows) if rows else None,
-        "tokens_k": mean((r.get("reserved_tokens") or 0) / 1000 for r in rows) if rows else None,
+        # Provider-reported usage where every call reported it; the budget's
+        # reservation otherwise, which over-states it (it counts the ceiling).
+        "tokens_k": mean(_tokens(r) / 1000 for r in rows) if rows else None,
+        "cost_usd": (
+            mean(float(r["estimated_cost_usd"]) for r in rows)
+            if rows and all(r.get("estimated_cost_usd") is not None for r in rows) else None
+        ),
+        "total_cost_usd": (
+            sum(float(r["estimated_cost_usd"]) for r in rows)
+            if rows and all(r.get("estimated_cost_usd") is not None for r in rows) else None
+        ),
         "latency_min": mean((r.get("latency_seconds") or 0) / 60 for r in rows) if rows else None,
         "rate_limited": mean(r.get("rate_limited") or 0 for r in rows) if rows else None,
         "passed_without_tests": sum(
@@ -86,6 +103,7 @@ COLUMNS = [
     ("qa_score", "QA score", "{:.1f}"),
     ("llm_calls", "LLM calls", "{:.1f}"),
     ("tokens_k", "Tokens (k)", "{:.1f}"),
+    ("cost_usd", "Cost (US$)", "{:.3f}"),
     ("latency_min", "Latency (min)", "{:.1f}"),
 ]
 EXTRA = [("rate_limited", "429s/run", "{:.2f}"), ("runs", "n", "{}")]
