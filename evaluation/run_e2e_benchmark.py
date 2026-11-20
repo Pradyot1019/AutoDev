@@ -131,6 +131,16 @@ def apply_environment(label: str, overrides: list[str], fake: bool) -> None:
     reset_settings_cache()
 
 
+def is_infra_error(error: str) -> bool:
+    """Whether the provider, not AutoDev, ended the run.
+
+    Only the provider's own message is searched. A parser error quotes the
+    model's output, and generated text about "daily" click counts once matched
+    the daily-quota pattern and stopped a benchmark.
+    """
+    provider_part = error.split("Invalid json output", 1)[0]
+    return bool(provider_part) and bool(_INFRA_ERROR.search(provider_part))
+
 # ── Requirements and results ─────────────────────────────────────
 
 
@@ -349,7 +359,7 @@ async def run_one(service: Any, item: dict[str, str], repeat: int, timeout: floa
         "run_id": record.id,
         "status": "timeout" if timed_out else record.status.value,
         "error": error[:2000],
-        "infra_error": bool(error) and bool(_INFRA_ERROR.search(error)),
+        "infra_error": is_infra_error(error),
         "started_at": started_at,
         "latency_seconds": round(latency, 1),
         "workspace": record.workspace,

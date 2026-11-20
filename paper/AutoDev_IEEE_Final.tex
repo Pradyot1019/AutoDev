@@ -283,7 +283,8 @@ services, endpoints, data models, databases, environment variables and
 implementation tasks. The Developer writes per-service source files, and QA
 returns bugs with severities, per-service quality scores and test files. Each
 agent has two prompts: a structured prompt for the JSON contract consumed by the
-next agent, and a text prompt for a client-facing PDF.
+next agent, and a text prompt for an optional client-facing PDF (off by default,
+since the console renders the same documents from the JSON).
 
 \begin{table}[t]
 \caption{Agents and Their Contracts}
@@ -331,11 +332,21 @@ human revision loops and verification-driven repair loops.}
 \label{sec:verification}
 Verification is ordered by cost (Algorithm~\ref{alg:verify}). The static gate
 compiles every generated Python file and runs the Ruff linter per service, with
-no model call; code that does not parse goes straight back to the Developer.
+no model call; code that does not parse goes straight back to the Developer. It
+also checks what a compiler and a linter cannot see but live runs kept
+producing: an import of a name or module that no file of the service defines, a
+module hidden by a same-named package (Python imports the package), and APIs a
+library has moved, such as \texttt{BaseSettings} leaving Pydantic~2 for
+\texttt{pydantic-settings}. Before anything is written, generated files whose
+line breaks arrive escaped as literal \texttt{\textbackslash n} are restored when
+the restored text parses.
 Code that parses reaches QA, which reviews in two steps: a cheap triage call
 sees only the file manifest and selects the files worth reading, and only those
 files are loaded and scored. The test runner then installs the project's
-dependencies and executes the pytest files QA wrote.
+dependencies and executes the pytest files QA wrote, together with one test it
+adds itself: that the application imports. Without it, a QA suite that only
+exercises schemas can pass while the application cannot start, and an import
+failure is reported with the project file and line that caused it.
 
 Let $T$ be the number of failing or erroring tests, $K$ the number of services
 whose tests could not run, $C$ the number of critical bugs and $s_i$ the quality
@@ -469,8 +480,9 @@ d = 2F + E + M + 2D
 \label{eq:difficulty}
 \end{equation}
 where $F$, $E$, $M$ and $D$ are its key files, endpoints, data models and service
-dependencies. Services with $d\le12$ use the low tier, $d\ge48$ the high tier,
-and the rest the medium tier. If verification shows that a tier was too weak, the
+dependencies. Services with $d<12$ use the low tier, $d\ge48$ the high tier,
+and the rest the medium tier. Routing is off by default, and the experiments in
+Section~VI use a single model for every purpose, so they do not exercise it. If verification shows that a tier was too weak, the
 service is escalated by at most one tier, and never for failures a stronger model
 cannot fix, such as rate limits or rejected keys. Completion ceilings are likewise
 sized per purpose and narrowed when the expected answer size is known.
@@ -484,7 +496,7 @@ allows a container backend to replace the local subprocess runner.
 %% =============================================== IV. NOVELTY & CONTRIBUTIONS
 \section{Novelty and Contributions}
 
-Compared with the baselines in Section~II, AutoDev makes four distinct
+Compared with the baselines in Section~II, AutoDev makes six distinct
 contributions.
 
 \textbf{N1. Contract-first, fail-closed orchestration with persistent human
@@ -519,16 +531,43 @@ explainable integer difficulty score routes each service to a model tier and
 escalates at most one step on evidence. Together these let the pipeline run on
 free-tier and local models, not only on frontier APIs.
 
+\textbf{N5. Model-free defences against LLM-specific code defects.} Live runs
+produced defects that compile, lint clean and are invisible to a reviewer model:
+imports of functions no file defines, a package created beside a same-named module
+(which Python then imports instead), library APIs from an older major version, and
+whole files whose line breaks arrived escaped. Each is caught or repaired by a
+deterministic check that resolves imports the way the interpreter does, before any
+model is asked to review the code. The test runner also owns one test that no
+agent writes---that the application imports---so a reviewer-written suite cannot
+pass ``hollowly'' while the application fails to start; in one observed run, two
+schema-only tests passed against an application that crashed on import. The
+failure names the project file and line to fix, which is the evidence the next
+Developer pass receives.
+
+\textbf{N6. Budget-fitted repair and measured cost.} A repair prompt carries real
+compiler output and tracebacks, which can exceed a small per-minute window on
+their own. Failure evidence is therefore condensed in graded levels (deduplicated
+assertion lines, then fewer failures, then shorter messages) until the whole call,
+prompt plus completion ceiling, fits the window, instead of failing the stage. All
+model calls are recorded in one ledger at the single point every call passes
+through, with the provider's own token counts captured by a callback even when a
+structured-output parser discards the raw message, and priced only from published
+rates. Cost per verified project is thus measured rather than estimated, and the
+same per-service independence that enables attribution lets a project's services
+be generated concurrently under the shared budget.
+
 %% =================================================== V. IMPLEMENTATION
 \section{Implementation Details}
 
 \subsection{Technology Stack}
 Table~\ref{tab:stack} summarises the stack. The back end is Python, with
 LangGraph~1.0 for orchestration, Pydantic~v2 for contracts and settings, FastAPI
-with SSE for the service, aiosqlite for persistence, Tenacity for retries and
-fpdf2 for client documents. Gemini~2.5 Flash is the default model; Groq, OpenAI,
-Ollama and Cerebras are selectable through LangChain provider packages. The
-console is written in Next.js~14 and TypeScript. Development used VS Code, Git
+with SSE for the service, aiosqlite for persistence and fpdf2 for optional
+client documents; retries use the error classifier of Section~III-E rather than a
+retry library. Gemini~2.5 Flash is the default model; Groq, Ollama, Cerebras and
+any OpenAI-compatible API (OpenAI, DeepSeek, Qwen, OpenRouter) are selectable
+through LangChain provider packages. The live experiments in Section~VI use
+DeepSeek~V4.1 Flash. The console is written in Next.js~14 and TypeScript. Development used VS Code, Git
 and GitHub~\cite{autodevrepo}.
 
 \begin{table}[t]
@@ -542,12 +581,12 @@ Layer & Tools \\
 \midrule
 Orchestration & LangGraph 1.0, SQLite checkpointer \\
 Contracts     & Pydantic v2, pydantic-settings \\
-LLM providers & Gemini 2.5 Flash (default), Groq, OpenAI, Ollama, Cerebras via LangChain \\
+LLM providers & Gemini 2.5 Flash (default), Groq, Ollama, Cerebras, OpenAI-compatible APIs (DeepSeek in Sec.~VI) via LangChain \\
 Service       & FastAPI, Uvicorn, SSE, aiosqlite \\
 Verification  & \texttt{py\_compile}, Ruff, pytest, subprocess sandbox \\
 Front end     & Next.js 14, TypeScript \\
 Artifacts     & fpdf2 (PDF), zip archive \\
-Testing       & pytest (1{,}139 tests), fake LLM for offline runs \\
+Testing       & pytest (1{,}267 tests), fake LLM for offline runs \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -555,7 +594,7 @@ Testing       & pytest (1{,}139 tests), fake LLM for offline runs \\
 \subsection{Code Organisation}
 The \texttt{agents}, \texttt{llm}, \texttt{verification}, \texttt{graph},
 \texttt{server}, \texttt{core} and \texttt{schema} packages comprise about
-8{,}800 lines of Python, and the console about 7{,}000 lines of TypeScript. All
+9{,}800 lines of Python, and the console about 7{,}200 lines of TypeScript. All
 settings (provider, per-purpose models and completion ceilings, TPM limit, retry
 limits, $\tau$ and $A$) are read from environment variables through a single
 settings object.
@@ -574,9 +613,10 @@ added, followed by the attribution module and surgical regeneration.
 \item \emph{LLM layer.} The provider registry, token budget, error classifier,
 structured-output ladder and difficulty router were built and unit-tested with a
 fake LLM and a simulated clock.
-\item \emph{Service and console.} A FastAPI service with ten routes (create, list,
-approve, give feedback to and cancel runs, stream events, browse files and download
-the archive) and the Next.js console were built on top of the same run service.
+\item \emph{Service and console.} A FastAPI service with fifteen routes (health;
+create, list, read, delete, approve, give feedback to and cancel runs; read the log
+and stream events; list and read files and artifacts, export a document as PDF,
+and download the archive) and the Next.js console were built on top of the same run service.
 \end{enumerate}
 
 \begin{figure}[t]
@@ -615,8 +655,8 @@ Component experiments use four dependency-free reference services (expense
 tracker, inventory, authentication, notification worker; 24 tests in total)
 written in exactly the layout the Developer agent emits, so the static gate and
 test runner process them as generated code. All use a fixed seed (42) and are
-reproduced by \texttt{evaluation/\allowbreak run\_component\_eval.py} (RQ1, RQ2)
-and \texttt{evaluation/\allowbreak run\_robustness\_eval.py} (RQ3).
+reproduced by \texttt{evaluation/\allowbreak component/\allowbreak run\_component\_eval.py}
+(RQ1, RQ2) and \texttt{evaluation/\allowbreak component/\allowbreak run\_robustness\_eval.py} (RQ3).
 
 \subsection{Metrics}
 Table~\ref{tab:metrics} defines the metrics. Because the output is executable
