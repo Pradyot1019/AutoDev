@@ -1,0 +1,1 @@
+Build a bookmark manager REST API in Python with FastAPI and SQLite. A bookmark has an id, url (must be http or https), title, and an optional list of tags. Endpoints: POST /bookmarks (201), GET /bookmarks with an optional ?tag= filter, GET /bookmarks/{id} (404 if missing), DELETE /bookmarks/{id} (204). Reject duplicate URLs with 409.
