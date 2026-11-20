@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "autodev-api",
+      "runtimeExecutable": "E:\\D Drive\\Projects\\AutoDev-full\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["scripts/dev.py"],
+      "port": 8000
+    },
+    {
+      "name": "autodev-console",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "studydeck-demo",
+      "runtimeExecutable": "E:\\D Drive\\Projects\\AutoDev-full\\runs\\24afe41dccc94e89b95bf8c384e123c8\\source\\studydeck\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8010", "--app-dir", "runs/24afe41dccc94e89b95bf8c384e123c8/source/studydeck"],
+      "cwd": "runs/24afe41dccc94e89b95bf8c384e123c8/source/studydeck",
+      "port": 8010
+    }
+  ]
+}

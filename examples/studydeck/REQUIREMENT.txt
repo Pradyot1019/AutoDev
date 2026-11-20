@@ -1,0 +1,38 @@
+Build "StudyDeck", a flashcard study website with spaced repetition.
+
+What a user can do:
+- Create, rename and delete decks (a deck has a name, 1-80 chars, and an optional description up to 300 chars).
+- Add, edit and delete cards in a deck (a card has front text and back text, each 1-500 chars).
+- Study a deck: the site shows the cards that are due today one at a time, front first; the user flips the card, then grades it "again", "hard", "good" or "easy". The next card appears until none are due.
+- See progress: for each deck, the number of cards, how many are due today, how many were reviewed today, and the current study streak (consecutive days with at least one review, counting today or ending yesterday).
+
+Scheduling (simplified SM-2), implemented as a pure function in app/srs.py:
+- Each card stores ease (starts at 2.5), interval_days (starts at 0), repetitions (starts at 0) and due_date (starts today).
+- "again": repetitions = 0, interval_days = 1, ease = max(1.3, ease - 0.2).
+- "hard": interval_days = max(1, round(interval_days * 1.2)), ease = max(1.3, ease - 0.15), repetitions + 1.
+- "good": first review 1 day, second review 3 days, after that round(interval_days * ease); repetitions + 1.
+- "easy": like "good" but the interval is multiplied by 1.3 (rounded, at least 2 days) and ease + 0.15.
+- due_date = review date + interval_days. Every review is also saved as a row (card_id, grade, reviewed_at) for the stats.
+
+JSON API (all under /api):
+- GET /api/decks (each deck with card_count and due_count), POST /api/decks (201), PATCH /api/decks/{id}, DELETE /api/decks/{id} (204, also deletes its cards and reviews).
+- GET /api/decks/{id}/cards, POST /api/decks/{id}/cards (201), PATCH /api/cards/{id}, DELETE /api/cards/{id} (204).
+- GET /api/decks/{id}/due returns the due cards, oldest due_date first.
+- POST /api/cards/{id}/review with {"grade": "again" | "hard" | "good" | "easy"} returns the updated card; an unknown grade returns 422.
+- GET /api/stats returns per-deck card_count, due_count and reviewed_today, plus the overall streak.
+- Unknown deck or card ids return 404.
+
+Website (served by the same FastAPI app):
+- A single page with three views switched by the URL hash: #/ (deck list with counts, a form to create a deck, rename and delete buttons), #/deck/{id} (the deck's cards with add, edit and delete, and a "Study now" button showing how many are due), #/study/{id} (one card at a time, a "Show answer" button, then the four grade buttons, and a "Done for today" message at the end).
+- A small stats bar on the deck list shows the streak and the total reviewed today.
+- Clean, readable layout that also works on a phone-width screen; keyboard shortcuts in study mode: Space shows the answer, 1-4 grade it.
+
+Build rules (follow exactly):
+- ONE service named "studydeck". No microservices, no Docker, no Redis, no PostgreSQL, no authentication, no user accounts.
+- Backend: Python, FastAPI, synchronous SQLAlchemy 2.0, SQLite. requirements.txt: fastapi, uvicorn, sqlalchemy>=2.0, pydantic>=2, httpx, pytest.
+- Database: DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./studydeck.db"); create_engine with connect_args={"check_same_thread": False}; call Base.metadata.create_all(engine) in app/main.py. Use ForeignKey with ondelete="CASCADE" and delete child rows in the deck delete endpoint as well.
+- Pydantic 2 only: use model_config = ConfigDict(from_attributes=True). Do not use orm_mode, BaseSettings or any settings class.
+- Flat files only: app/__init__.py, app/main.py (defines app = FastAPI()), app/database.py, app/models.py, app/schemas.py, app/srs.py, app/routes.py. No sub-folders inside app/ except app/static/. Every name imported from another project file must be defined in that file.
+- Frontend: plain HTML, CSS and vanilla JavaScript in app/static/ (index.html, style.css, app.js). No React, no npm, no build step, no external CDN. GET / returns index.html with FileResponse; mount StaticFiles at /static; find the folder with Path(__file__).parent / "static". app.js calls the API with fetch() using relative /api/... paths only.
+- Dates: use datetime.date.today() in one helper, today(), in app/srs.py, so tests can monkeypatch it.
+- Tests: pytest with FastAPI's TestClient. Unit tests for every grade in app/srs.py (including the ease floor of 1.3 and the first, second and later "good" intervals); one test per endpoint; the 404 and 422 cases; deleting a deck removes its cards; a reviewed card is no longer due today; the streak; and GET / returns 200 with HTML. Each test creates the data it needs.
