@@ -1048,11 +1048,12 @@ requirements have no acceptance tests. Ablations are counterfactual estimates
 from logs, not separate runs. The review gates were auto-approved, which does not
 capture human variability and removes the gate's chance to catch drift. The local
 runner is not kernel-level isolation, and generation targets Python back-end
-services only. Cost uses DeepSeek's peak rates; off-peak runs cost half.
+services only. Cost uses DeepSeek's peak rates; calls made off-peak are billed at a discount,
+so reported costs are upper bounds.
 
 %% ============================================ VII. CONCLUSION & FUTURE SCOPE
 \section{Conclusion and Future Scope}
-AutoDev shows that a requirement-to-code agent pipeline can be made dependable by
+AutoDev shows how a requirement-to-code agent pipeline can be made accountable by
 construction: typed contracts at every hand-off, human approval of the plan before
 code is written, acceptance decided by compiling and running the code, failures
 traced to the service that caused them, and an LLM layer engineered for the rate
@@ -1060,8 +1061,8 @@ limits and capability gaps of affordable models. In component experiments,
 verification detected 88.7\% of injected faults (every build fault), attribution
 was exact and cut Developer calls by 64\%, and the self-correcting budget nearly
 eliminated rate-limit rejections. With a live model, AutoDev verified 40\% of
-30 runs at US\$0.15 each, and its execution-based verdict was right about
-acceptance in 9 of the 10 projects it accepted; a single prompt nevertheless
+30 runs at US\$0.15 each, and 9 of the 10 easy and medium projects it accepted
+also passed held-out acceptance tests; a single prompt nevertheless
 produced more acceptable small projects at lower cost. The pipeline's own
 evidence located why: consistency defects between separately generated files
 and QA tests stricter than the requirement.

@@ -68,7 +68,7 @@ auto-approves both human review gates.
 
 **Pricing.** Cost comes from `llm/pricing.py`, using DeepSeek's published peak
 rates per million tokens: $0.30 input, $1.20 output, $0.006 cached input.
-Off-peak calls are billed at half, so these are upper bounds. Token counts are
+Off-peak calls are billed at a discount, so these are upper bounds. Token counts are
 the provider's own `usage_metadata`. A callback in `llm/registry.py` captures
 them even when the structured-output parser discards the raw message.
 
